@@ -1,0 +1,28 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+env/
+venv/
+ENV/
+ENV/*
+vendor/
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Generated reports
+*.html
+*.csv
+*.xls
+*.xlsx
+
+# Cache directories
+*.egg-info/
+*.egg/
