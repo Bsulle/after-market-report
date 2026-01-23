@@ -39,16 +39,17 @@ def calculate_metrics(data):
     ticker_data = data['ticker_data']
     macro_data = data['macro_data']
 
-    # Calculate regime score
-    regime_score = calc.calculate_regime_score(macro_data)
+    # Calculate regime score with detailed breakdown
+    regime_score, regime_components = calc.calculate_regime_score_detailed(macro_data)
     regime_label = calc.get_regime_label(regime_score)
 
     print(f"Market Regime: {regime_label} (Score: {regime_score:.1f}/5.0)")
 
-    # Calculate metrics for each ticker
+    # Calculate metrics for each ticker, passing market data for beta calculation
+    market_data = macro_data.get('S&P 500', {})
     metrics = {}
     for ticker, ticker_info in ticker_data.items():
-        metrics[ticker] = calc.calculate_ticker_metrics(ticker, ticker_info, regime_score)
+        metrics[ticker] = calc.calculate_ticker_metrics(ticker, ticker_info, regime_score, market_data)
 
     # Calculate correlation matrix
     correlation_matrix = calc.correlation_clusters(ticker_data)
@@ -56,6 +57,7 @@ def calculate_metrics(data):
     return {
         'regime_score': regime_score,
         'regime_label': regime_label,
+        'regime_components': regime_components,
         'metrics': metrics,
         'correlation_matrix': correlation_matrix
     }
@@ -81,7 +83,8 @@ def build_markdown_report(data, calculated_metrics):
         metrics=calculated_metrics['metrics'],
         regime_score=calculated_metrics['regime_score'],
         regime_label=calculated_metrics['regime_label'],
-        correlation_matrix=calculated_metrics['correlation_matrix']
+        correlation_matrix=calculated_metrics['correlation_matrix'],
+        regime_components=calculated_metrics.get('regime_components')
     )
 
     return report
