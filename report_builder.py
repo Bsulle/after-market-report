@@ -8,21 +8,24 @@ class ReportBuilder:
         self.date_str = date_str
         self.sections = []
 
-    def build_report(self, ticker_data, macro_data, metrics, regime_score, regime_label, correlation_matrix, regime_components=None):
+    def build_report(self, ticker_data, macro_data, metrics, regime_score, regime_label, correlation_matrix, regime_components=None, options_data=None, prev_data=None):
         """Build the complete markdown report."""
 
         self.add_header()
         self.add_summary_stats(ticker_data, macro_data, regime_label, regime_score)
+        self.add_what_changed_today(ticker_data, macro_data, prev_data)  # NEW: Delta analysis
         self.add_executive_dashboard(regime_label, regime_score, macro_data)
         self.add_market_regime_coach_call(regime_label, regime_score, macro_data, regime_components)
         self.add_macro_panel(macro_data)
         self.add_market_tape(ticker_data)
         self.add_conviction_dashboard(ticker_data, metrics)
+        self.add_technical_signals(ticker_data, metrics)  # NEW: Technical signals
         self.add_correlation_clusters(correlation_matrix)
         self.add_position_sizing(regime_score)
         self.add_theme_rotation(ticker_data, metrics)
         self.add_leadership_map(ticker_data, metrics)
         self.add_liquidity_flags(ticker_data)
+        self.add_options_flow(ticker_data, options_data)  # NEW: Options flow
         self.add_ticker_cards(ticker_data, metrics)
         self.add_portfolio_risk_metrics(ticker_data, metrics)
         self.add_game_plan(regime_label)
@@ -73,6 +76,52 @@ class ReportBuilder:
 │ Worst: {worst[0]:6} {worst[1].get('pct_change', 0):+.2f}%                             │
 └─────────────────────────────────────────────────────────┘
 ```"""
+        self.sections.append(section)
+
+    def add_what_changed_today(self, ticker_data, macro_data, prev_data=None):
+        """Add delta analysis - what changed vs yesterday."""
+        section = """## What Changed Today
+
+**Market Delta (vs Previous Session):**"""
+
+        # Macro changes
+        vix_change = macro_data.get('VIX', {}).get('pct_change', 0)
+        spy_change = macro_data.get('S&P 500', {}).get('pct_change', 0)
+        dxy_change = macro_data.get('DXY', {}).get('pct_change', 0)
+        gold_change = macro_data.get('Gold', {}).get('pct_change', 0)
+
+        section += f"""
+- **VIX:** {macro_data.get('VIX', {}).get('price', 'N/A')} ({vix_change:+.2f}%) - {'Fear subsiding' if vix_change < 0 else 'Fear rising'}
+- **Gold:** ${macro_data.get('Gold', {}).get('price', 0):.2f} ({gold_change:+.2f}%) - {'Safe haven bid' if gold_change > 0 else 'Risk-on rotation'}
+- **DXY:** {macro_data.get('DXY', {}).get('price', 0):.2f} ({dxy_change:+.2f}%) - {'Dollar strength' if dxy_change > 0 else 'Dollar weakness'}
+
+**Your Watchlist Major Shifts:**"""
+
+        # Find biggest movers and reversals
+        sorted_by_change = sorted(ticker_data.items(), key=lambda x: abs(x[1].get('pct_change', 0)), reverse=True)
+
+        section += "\n- **Biggest Mover:** "
+        if sorted_by_change:
+            top_mover = sorted_by_change[0]
+            section += f"{top_mover[0]} ({top_mover[1].get('pct_change', 0):+.2f}%)"
+            if abs(top_mover[1].get('pct_change', 0)) > 5:
+                section += " - Significant momentum"
+
+        # Find acceleration (would need prev data)
+        section += "\n- **Market Breadth:** "
+        green_pct = sum(1 for t in ticker_data.values() if t.get('pct_change', 0) > 0) / len(ticker_data) * 100
+        section += f"{green_pct:.0f}% green ({'Improving' if green_pct > 50 else 'Deteriorating'})"
+
+        section += "\n\n**Key Takeaway:** "
+        if vix_change < -2 and spy_change > 0.5:
+            section += "Risk-on environment strengthening - low vol + market strength"
+        elif vix_change > 2 and spy_change < -0.5:
+            section += "Risk-off pressures building - rising fear + market weakness"
+        elif abs(gold_change) > 1:
+            section += f"Gold making moves ({gold_change:+.2f}%) - watch for macro shifts"
+        else:
+            section += "Mixed signals - maintain selective positioning"
+
         self.sections.append(section)
 
     def add_executive_dashboard(self, regime_label, regime_score, macro_data):
@@ -215,9 +264,78 @@ class ReportBuilder:
 
         self.sections.append(section)
 
+    def add_technical_signals(self, ticker_data, metrics):
+        """Add technical signal summary dashboard."""
+        section = """## 6. Technical Signals Dashboard
+
+**BUY Signals:**"""
+
+        buy_signals = []
+        sell_signals = []
+        hold_signals = []
+
+        for ticker, data in ticker_data.items():
+            metric = metrics.get(ticker, {})
+            rsi = metric.get('rsi')
+            macd = metric.get('macd', {})
+            pct_change = data.get('pct_change', 0)
+            above_ma_50 = data.get('above_ma_50', False)
+            momentum_5d = metric.get('momentum_5d', 0)
+
+            signals = []
+
+            # RSI signals
+            if rsi is not None:
+                if rsi < 30:
+                    signals.append("RSI oversold")
+                elif rsi > 70:
+                    signals.append("RSI overbought")
+
+            # MACD signals
+            if macd.get('histogram') is not None:
+                if macd['histogram'] > 0 and momentum_5d > 2:
+                    signals.append("MACD bullish + momentum")
+                elif macd['histogram'] < 0 and momentum_5d < -2:
+                    signals.append("MACD bearish + breakdown")
+
+            # MA breakout
+            if above_ma_50 and pct_change > 3:
+                signals.append("Above MA50 with volume")
+
+            # Classify
+            if any('oversold' in s or 'bullish' in s.lower() or 'volume' in s for s in signals):
+                buy_signals.append(f"{ticker}: {', '.join(signals)}")
+            elif any('overbought' in s or 'bearish' in s.lower() or 'breakdown' in s for s in signals):
+                sell_signals.append(f"{ticker}: {', '.join(signals)}")
+            elif signals:
+                hold_signals.append(f"{ticker}: {', '.join(signals)}")
+
+        # Display buy signals
+        if buy_signals:
+            for signal in buy_signals[:5]:  # Top 5
+                section += f"\n- 🟢 {signal}"
+        else:
+            section += "\n- No strong buy signals detected"
+
+        section += "\n\n**SELL/TRIM Signals:**"
+        if sell_signals:
+            for signal in sell_signals[:5]:  # Top 5
+                section += f"\n- 🔴 {signal}"
+        else:
+            section += "\n- No strong sell signals detected"
+
+        section += "\n\n**HOLD/WATCH:**"
+        if hold_signals:
+            for signal in hold_signals[:3]:  # Top 3
+                section += f"\n- ⚪ {signal}"
+        else:
+            section += "\n- Most positions in neutral territory"
+
+        self.sections.append(section)
+
     def add_correlation_clusters(self, correlation_matrix):
         """Add correlation clusters analysis with actual correlation matrix."""
-        section = """## 6. Correlation Clusters
+        section = """## 7. Correlation Clusters
 
 **30-Day Rolling Correlation Matrix** (Top correlations shown):\n"""
 
@@ -286,7 +404,7 @@ class ReportBuilder:
             low_conv = "0.25-0.5%"
             cash = "30-40%"
 
-        section = f"""## 7. Position Sizing Matrix
+        section = f"""## 8. Position Sizing Matrix
 
 **Recommended Allocation by Conviction Level:**
 - High Conviction (🔥 4.5-5.0): {high_conv} per position
@@ -298,7 +416,7 @@ class ReportBuilder:
 
     def add_theme_rotation(self, ticker_data, metrics):
         """Add theme rotation scorecard."""
-        section = """## 8. Theme Rotation Scorecard
+        section = """## 9. Theme Rotation Scorecard
 
 **Themes Gaining Momentum:** ↗️
 - Space/Satellite: ASTS showing strength
@@ -323,7 +441,7 @@ class ReportBuilder:
         leaders = [t[0] for t in sorted_tickers[:5]]
         laggards = [t[0] for t in sorted_tickers[-5:]]
 
-        section = f"""## 9. Leadership Map
+        section = f"""## 10. Leadership Map
 
 **Leaders** (Momentum + Participation):
 {', '.join(leaders)}
@@ -337,7 +455,7 @@ NVO, HIMS (healthcare stability)
 
     def add_liquidity_flags(self, ticker_data):
         """Add liquidity assessment."""
-        section = """## 10. Liquidity Flags
+        section = """## 11. Liquidity Flags
 
 **Assessment by Ticker:**"""
 
@@ -355,9 +473,65 @@ NVO, HIMS (healthcare stability)
 
         self.sections.append(section)
 
+    def add_options_flow(self, ticker_data, options_data=None):
+        """Add options flow analysis section."""
+        section = """## 12. Options Flow Analysis
+
+**Unusual Activity Detected:**"""
+
+        if options_data and len(options_data) > 0:
+            # Real options data available
+            section += "\n\n| Ticker | Signal | P/C Ratio | Call Vol | Put Vol | Top Strikes | Sentiment |\n"
+            section += "|--------|--------|-----------|----------|---------|-------------|-----------|"
+
+            for ticker, opt_data in options_data.items():
+                unusual = opt_data.get('unusual_activity', {})
+                if unusual.get('status') == 'Active':
+                    signal = unusual.get('signal', '⚪ Neutral')
+                    pc_ratio = unusual.get('put_call_ratio', 1.0)
+                    call_vol = unusual.get('call_volume', 0)
+                    put_vol = unusual.get('put_volume', 0)
+                    top_strikes = unusual.get('top_strikes', [])
+                    strikes_str = ', '.join([f"${s:.0f}" for s in top_strikes[:3]]) if top_strikes else 'N/A'
+                    sentiment = unusual.get('sentiment', 'neutral')
+
+                    section += f"\n| {ticker} | {signal} | {pc_ratio:.2f} | {call_vol:,} | {put_vol:,} | {strikes_str} | {sentiment} |"
+
+            section += "\n\n**Key Takeaways:**"
+
+            # Analyze overall flow
+            bullish_count = sum(1 for opt in options_data.values()
+                              if opt.get('unusual_activity', {}).get('sentiment') == 'bullish')
+            bearish_count = sum(1 for opt in options_data.values()
+                              if opt.get('unusual_activity', {}).get('sentiment') == 'bearish')
+
+            section += f"\n- **Bullish Flow:** {bullish_count} tickers showing heavy call activity"
+            section += f"\n- **Bearish Flow:** {bearish_count} tickers showing put protection"
+
+            # Find most interesting
+            for ticker, opt_data in sorted(options_data.items(),
+                                          key=lambda x: x[1].get('unusual_activity', {}).get('call_volume', 0),
+                                          reverse=True)[:2]:
+                unusual = opt_data.get('unusual_activity', {})
+                if unusual.get('call_volume', 0) > 0:
+                    section += f"\n- **{ticker}:** Aggressive upside bets detected (check top strikes for targets)"
+
+        else:
+            # No options data - show placeholder
+            section += "\n\n*Note: Options data requires Massive.com API integration. Run locally for real-time flow.*"
+
+            section += "\n\n**When Available, You'll See:**"
+            section += "\n- Real-time unusual options activity"
+            section += "\n- Put/Call ratios and sentiment"
+            section += "\n- Top strike prices with heavy volume"
+            section += "\n- Institutional vs retail flow patterns"
+            section += "\n- Implied volatility changes"
+
+        self.sections.append(section)
+
     def add_ticker_cards(self, ticker_data, metrics):
         """Add detailed ticker analysis cards with technical indicators."""
-        section = "## 11. Full Ticker Cards"
+        section = "## 13. Full Ticker Cards"
 
         for ticker, data in sorted(ticker_data.items()):
             metric = metrics.get(ticker, {})
@@ -425,7 +599,7 @@ NVO, HIMS (healthcare stability)
 
     def add_portfolio_risk_metrics(self, ticker_data, metrics):
         """Add portfolio-level risk metrics."""
-        section = """## 12. Portfolio Risk Metrics
+        section = """## 14. Portfolio Risk Metrics
 
 **Risk Assessment:**"""
 
@@ -490,7 +664,7 @@ NVO, HIMS (healthcare stability)
             red_plan = "Comfortable in cash/defensive anchors"
             flat_plan = "Scout for capitulation/reversal signals"
 
-        section = f"""## 13. Tomorrow's Game Plan
+        section = f"""## 15. Tomorrow's Game Plan
 
 **Scenario Analysis:**
 
@@ -517,7 +691,7 @@ NVO, HIMS (healthcare stability)
 - Financials (XLF) showing leadership
 - High-beta names reclaiming moving averages"""
 
-        section = f"""## 14. Falsification Checklist
+        section = f"""## 16. Falsification Checklist
 
 **What would invalidate today's {regime_label.lower()} thesis:**
 {checklist}"""
@@ -527,7 +701,7 @@ NVO, HIMS (healthcare stability)
         """Add RISI (Risk, Industry, Sentiment, Inflection) wrap."""
         spy_change = macro_data.get('S&P 500', {}).get('pct_change', 0)
 
-        section = f"""## 15. RISI Wrap
+        section = f"""## 17. RISI Wrap
 
 **Risk:** {regime_label} - {'Improving' if spy_change > 0 else 'Deteriorating'}
 **Industry:** Sector rotation ongoing - monitor relative strength
@@ -547,7 +721,7 @@ NVO, HIMS (healthcare stability)
             reverse=True
         )[:5]
 
-        section = """## 16. High-Conviction Watch List
+        section = """## 18. High-Conviction Watch List
 
 **Top 5 Setups for Tomorrow:**
 """
@@ -567,7 +741,7 @@ NVO, HIMS (healthcare stability)
 
     def add_performance_tracker(self):
         """Add performance tracker."""
-        section = """## 17. Performance Tracker
+        section = """## 19. Performance Tracker
 
 **Hit Rate Statistics:**
 - Last 10 Calls: TBD (tracking begins)
@@ -586,7 +760,7 @@ NVO, HIMS (healthcare stability)
         else:
             directive = "Protect capital first, scout second - survive to trade another day."
 
-        section = f"""## 18. One-Sentence Coach Directive
+        section = f"""## 20. One-Sentence Coach Directive
 
 **{directive}**
 
