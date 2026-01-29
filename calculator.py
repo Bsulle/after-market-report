@@ -79,6 +79,47 @@ class Calculator:
             return 0
         return current_volume / avg_volume
 
+    def calculate_atr(self, high, low, close, period=14):
+        """Calculate Average True Range for volatility-based stops."""
+        if len(high) < period + 1:
+            return None
+
+        # Calculate True Range
+        tr1 = high - low
+        tr2 = abs(high - close.shift(1))
+        tr3 = abs(low - close.shift(1))
+
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr = tr.rolling(window=period).mean()
+
+        return atr.iloc[-1] if not atr.empty and not pd.isna(atr.iloc[-1]) else None
+
+    def calculate_relative_strength(self, ticker_returns, market_returns, period=20):
+        """Calculate relative strength vs market (SPY) over period."""
+        if len(ticker_returns) < period or len(market_returns) < period:
+            return None
+
+        # Sum of returns over period
+        ticker_perf = (1 + ticker_returns.tail(period)).prod() - 1
+        market_perf = (1 + market_returns.tail(period)).prod() - 1
+
+        # Relative strength = ticker performance - market performance
+        return (ticker_perf - market_perf) * 100
+
+    def detect_gap(self, current_open, prev_close):
+        """Detect gap up/down from previous close."""
+        if prev_close == 0:
+            return None, 0
+
+        gap_pct = ((current_open - prev_close) / prev_close) * 100
+
+        if gap_pct > 2:
+            return 'GAP_UP', gap_pct
+        elif gap_pct < -2:
+            return 'GAP_DOWN', gap_pct
+        else:
+            return None, gap_pct
+
     # ==================== PIVOT LEVELS ====================
 
     def calculate_pivot_levels(self, high, low, close):
@@ -433,10 +474,26 @@ class Calculator:
             tech_indicators['momentum_20d'] = self.calculate_momentum(prices, 20)
             tech_indicators['volatility_30d'] = self.calculate_volatility(returns, 30)
 
-            # Calculate beta if market data available
+            # Calculate ATR for volatility-based stops
+            tech_indicators['atr'] = self.calculate_atr(
+                hist['High'], hist['Low'], hist['Close']
+            )
+
+            # Calculate beta and relative strength if market data available
             if market_data is not None and 'hist' in market_data:
                 market_returns = market_data['hist']['Close'].pct_change().dropna()
                 tech_indicators['beta'] = self.calculate_beta(returns, market_returns)
+                tech_indicators['relative_strength'] = self.calculate_relative_strength(
+                    returns, market_returns, period=20
+                )
+
+        # Gap detection
+        gap_type, gap_pct = self.detect_gap(
+            ticker_data.get('open', 0),
+            ticker_data.get('prev_close', ticker_data.get('close', 0))
+        )
+        tech_indicators['gap_type'] = gap_type
+        tech_indicators['gap_pct'] = gap_pct
 
         # Calculate relative volume
         avg_volume = ticker_data['hist']['Volume'].mean() if hist is not None else ticker_data.get('volume', 1)
@@ -451,6 +508,12 @@ class Calculator:
             ticker_data['low'],
             ticker_data['close']
         )
+
+        # ATR-based stop levels
+        atr = tech_indicators.get('atr')
+        if atr is not None:
+            pivot_levels['ATR_Stop'] = ticker_data['close'] - (2 * atr)
+            pivot_levels['ATR_Target'] = ticker_data['close'] + (3 * atr)
 
         # Setup quality
         setup_quality = self.assess_setup_quality(ticker_data, tech_indicators)
@@ -479,5 +542,19 @@ class Calculator:
             'conviction': conviction,
             'conviction_breakdown': conviction_breakdown,
             'relative_volume': rel_volume,
-            'avg_volume': avg_volume
+            'avg_volume': avg_volume,
+            'rsi': tech_indicators.get('rsi'),
+            'macd': {
+                'line': tech_indicators.get('macd'),
+                'signal': tech_indicators.get('macd_signal'),
+                'histogram': tech_indicators.get('macd_histogram')
+            },
+            'atr': tech_indicators.get('atr'),
+            'relative_strength': tech_indicators.get('relative_strength'),
+            'gap_type': tech_indicators.get('gap_type'),
+            'gap_pct': tech_indicators.get('gap_pct'),
+            'beta': tech_indicators.get('beta'),
+            'volatility': tech_indicators.get('volatility_30d'),
+            'momentum_5d': tech_indicators.get('momentum_5d'),
+            'momentum_20d': tech_indicators.get('momentum_20d')
         }

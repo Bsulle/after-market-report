@@ -224,9 +224,10 @@ class ReportBuilder:
         section = """## 5. Conviction Dashboard
 
 **Conviction Scale:** 🔥 4.5-5.0 | ✅ 3.5-4.4 | ⚠️ 2.5-3.4 | 🚫 <2.5
+**RSI:** 🔴 >70 Overbought | 🟢 <30 Oversold | ⚪ 30-70 Neutral
 
-| Ticker | Price | Change | Rel Vol | Conviction | Quick Read |
-|--------|-------|--------|---------|------------|------------|"""
+| Ticker | Price | Change | RSI | MACD | Rel Vol | Conv | Signal |
+|--------|-------|--------|-----|------|---------|------|--------|"""
 
         # Sort by conviction
         sorted_tickers = sorted(
@@ -240,20 +241,47 @@ class ReportBuilder:
             pct_change = data.get('pct_change', 0)
             conviction = metrics.get(ticker, {}).get('conviction', 0)
             rel_vol = metrics.get(ticker, {}).get('relative_volume', 1.0)
+            rsi = metrics.get(ticker, {}).get('rsi')
+            macd = metrics.get(ticker, {}).get('macd', {})
+            macd_hist = macd.get('histogram', 0) if macd else 0
 
-            # Icon based on conviction
+            # Conviction icon
             if conviction >= 4.5:
-                icon = "🔥"
+                conv_icon = "🔥"
             elif conviction >= 3.5:
-                icon = "✅"
+                conv_icon = "✅"
             elif conviction >= 2.5:
-                icon = "⚠️"
+                conv_icon = "⚠️"
             else:
-                icon = "🚫"
+                conv_icon = "🚫"
 
-            quick_read = "Above MA50" if data.get('above_ma_50', False) else "Below MA50"
+            # RSI signal with color
+            if rsi is not None:
+                if rsi > 70:
+                    rsi_str = f"🔴{rsi:.0f}"
+                elif rsi < 30:
+                    rsi_str = f"🟢{rsi:.0f}"
+                else:
+                    rsi_str = f"{rsi:.0f}"
+            else:
+                rsi_str = "-"
 
-            section += f"\n| {ticker} | ${price:.2f} | {'+' if pct_change > 0 else ''}{pct_change:.2f}% | {rel_vol:.2f}x | {icon} {conviction:.1f} | {quick_read} |"
+            # MACD signal with trend
+            if macd_hist != 0:
+                macd_str = f"{'📈' if macd_hist > 0 else '📉'}"
+            else:
+                macd_str = "-"
+
+            # Quick signal based on technicals
+            above_ma = data.get('above_ma_50', False)
+            if above_ma and (rsi is None or rsi < 70) and macd_hist > 0:
+                signal = "🟢 BUY"
+            elif not above_ma and (rsi is None or rsi > 30) and macd_hist < 0:
+                signal = "🔴 SELL"
+            else:
+                signal = "⚪ HOLD"
+
+            section += f"\n| {ticker} | ${price:.2f} | {'+' if pct_change > 0 else ''}{pct_change:.2f}% | {rsi_str} | {macd_str} | {rel_vol:.2f}x | {conv_icon}{conviction:.1f} | {signal} |"
 
         # Add conviction breakdown for top 3 tickers
         section += "\n\n**Top 3 Conviction Score Breakdowns:**\n"
@@ -628,6 +656,10 @@ NVO, HIMS (healthcare stability)
             momentum_5d = metric.get('momentum_5d', None)
             momentum_20d = metric.get('momentum_20d', None)
             rel_vol = metric.get('relative_volume', 1.0)
+            atr = metric.get('atr', None)
+            rel_strength = metric.get('relative_strength', None)
+            gap_type = metric.get('gap_type', None)
+            gap_pct = metric.get('gap_pct', 0)
 
             # 52-week data
             high_52w = data.get('high_52w')
@@ -635,8 +667,31 @@ NVO, HIMS (healthcare stability)
             position_52w = data.get('position_52w')
             pct_from_high = data.get('pct_from_high')
 
+            # Gap alert
+            gap_alert = ""
+            if gap_type == 'GAP_UP':
+                gap_alert = f" | 🚀 GAP UP {gap_pct:+.1f}%"
+            elif gap_type == 'GAP_DOWN':
+                gap_alert = f" | 💥 GAP DOWN {gap_pct:+.1f}%"
+
+            # Relative strength indicator
+            rs_indicator = ""
+            if rel_strength is not None:
+                if rel_strength > 5:
+                    rs_indicator = "🟢 Outperforming SPY"
+                elif rel_strength < -5:
+                    rs_indicator = "🔴 Underperforming SPY"
+                else:
+                    rs_indicator = "⚪ In-line with SPY"
+
             card = f"""
-### {ticker} - Conviction: {conviction:.1f}/5.0
+### {ticker} - Conviction: {conviction:.1f}/5.0{gap_alert}
+
+**Current Price:** ${data.get('close', 0):.2f} ({'+' if data.get('pct_change', 0) > 0 else ''}{data.get('pct_change', 0):.2f}%)
+**Volume:** {data.get('volume', 0):,.0f} (Rel Vol: {rel_vol:.2f}x)
+**Regime Fit:** {'Strong' if conviction >= 4 else 'Moderate' if conviction >= 3 else 'Weak'}
+**Relative Strength (20d):** {rs_indicator} ({rel_strength:+.1f}% vs SPY)""" if rel_strength is not None else f"""
+### {ticker} - Conviction: {conviction:.1f}/5.0{gap_alert}
 
 **Current Price:** ${data.get('close', 0):.2f} ({'+' if data.get('pct_change', 0) > 0 else ''}{data.get('pct_change', 0):.2f}%)
 **Volume:** {data.get('volume', 0):,.0f} (Rel Vol: {rel_vol:.2f}x)
@@ -673,6 +728,10 @@ NVO, HIMS (healthcare stability)
             if momentum_5d is not None and momentum_20d is not None:
                 card += f"\n- Momentum: 5D={momentum_5d:+.2f}%, 20D={momentum_20d:+.2f}%"
 
+            # ATR info
+            atr_stop = pivot_levels.get('ATR_Stop')
+            atr_target = pivot_levels.get('ATR_Target')
+
             card += f"""
 
 **Technical Pattern:**
@@ -681,12 +740,23 @@ NVO, HIMS (healthcare stability)
 - Support: S1=${pivot_levels.get('S1', 0):.2f}, S2=${pivot_levels.get('S2', 0):.2f}
 - Trend: {'Bullish' if data.get('above_ma_50', False) else 'Bearish/Neutral'}
 
-**Swing Setup:**
+**Swing Setup (Pivot-Based):**
 - Entry Zone: ${pivot_levels.get('S1', 0):.2f} - ${pivot_levels.get('P', 0):.2f}
 - Stop: ${pivot_levels.get('S2', 0):.2f}
-- Target: ${pivot_levels.get('R2', 0):.2f}
+- Target: ${pivot_levels.get('R2', 0):.2f}"""
 
-**Coach Summary:** Monitor price action around pivot levels. Conviction score of {conviction:.1f} suggests {'high priority' if conviction >= 4 else 'moderate watch' if conviction >= 3 else 'low priority'}."""
+            if atr is not None and atr_stop is not None:
+                card += f"""
+
+**Volatility-Based Setup (ATR):**
+- ATR(14): ${atr:.2f}
+- ATR Stop (2x): ${atr_stop:.2f}
+- ATR Target (3x): ${atr_target:.2f}
+- Risk/Reward: 1:1.5"""
+
+            card += f"""
+
+**Coach Summary:** {'🚀 GAP ALERT - ' if gap_type else ''}Monitor price action around pivot levels. Conviction score of {conviction:.1f} suggests {'high priority' if conviction >= 4 else 'moderate watch' if conviction >= 3 else 'low priority'}."""
 
             section += card
 
