@@ -4,7 +4,10 @@ from datetime import datetime, timedelta
 import sys
 
 from config import watchlist
-from data_gatherer import fetch_ticker_data, fetch_macro_data, fetch_breadth_data
+from data_gatherer import (
+    fetch_ticker_data, fetch_macro_data, fetch_breadth_data,
+    fetch_options_data, fetch_earnings_calendar, fetch_52week_data
+)
 from calculator import Calculator
 from report_builder import ReportBuilder
 
@@ -62,6 +65,19 @@ def gather_data(date):
         print("\nFetching macro data via yfinance...")
         macro_data = fetch_macro_data(date)
 
+        # Fetch options data via yfinance (free!)
+        if not options_data:
+            print("\nFetching options data via yfinance...")
+            options_data = fetch_options_data(watchlist)
+
+    # Add 52-week data to ticker data
+    print("\nCalculating 52-week positions...")
+    ticker_data = fetch_52week_data(ticker_data)
+
+    # Fetch earnings calendar
+    print("Fetching earnings calendar...")
+    earnings_data = fetch_earnings_calendar(watchlist)
+
     print("\nFetching breadth data...")
     breadth_data = fetch_breadth_data()
 
@@ -69,7 +85,8 @@ def gather_data(date):
         'ticker_data': ticker_data,
         'macro_data': macro_data,
         'breadth_data': breadth_data,
-        'options_data': options_data
+        'options_data': options_data,
+        'earnings_data': earnings_data
     }
 
 def calculate_metrics(data):
@@ -129,6 +146,7 @@ def build_markdown_report(data, calculated_metrics):
         correlation_matrix=calculated_metrics['correlation_matrix'],
         regime_components=calculated_metrics.get('regime_components'),
         options_data=data.get('options_data', {}),
+        earnings_data=data.get('earnings_data', {}),
         prev_data=None  # Could be enhanced to load previous day's data
     )
 

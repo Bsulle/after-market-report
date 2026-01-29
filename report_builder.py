@@ -8,7 +8,15 @@ class ReportBuilder:
         self.date_str = date_str
         self.sections = []
 
-    def build_report(self, ticker_data, macro_data, metrics, regime_score, regime_label, correlation_matrix, regime_components=None, options_data=None, prev_data=None):
+    def _create_range_bar(self, position_pct):
+        """Create a visual range bar showing position in 52-week range."""
+        bar_length = 10
+        filled = int(position_pct / 100 * bar_length)
+        filled = max(0, min(bar_length, filled))  # Clamp to valid range
+        bar = '[' + '=' * filled + '|' + '-' * (bar_length - filled) + ']'
+        return bar
+
+    def build_report(self, ticker_data, macro_data, metrics, regime_score, regime_label, correlation_matrix, regime_components=None, options_data=None, earnings_data=None, prev_data=None):
         """Build the complete markdown report."""
 
         self.add_header()
@@ -26,6 +34,7 @@ class ReportBuilder:
         self.add_leadership_map(ticker_data, metrics)
         self.add_liquidity_flags(ticker_data)
         self.add_options_flow(ticker_data, options_data)  # NEW: Options flow
+        self.add_earnings_calendar(earnings_data)  # NEW: Earnings calendar
         self.add_ticker_cards(ticker_data, metrics)
         self.add_portfolio_risk_metrics(ticker_data, metrics)
         self.add_game_plan(regime_label)
@@ -480,45 +489,66 @@ NVO, HIMS (healthcare stability)
 **Unusual Activity Detected:**"""
 
         if options_data and len(options_data) > 0:
-            # Real options data available
-            section += "\n\n| Ticker | Signal | P/C Ratio | Call Vol | Put Vol | Top Strikes | Sentiment |\n"
-            section += "|--------|--------|-----------|----------|---------|-------------|-----------|"
+            # Real options data available (yfinance or Massive.com format)
+            section += "\n\n| Ticker | P/C Ratio | Call Vol | Put Vol | Avg Call IV | Avg Put IV | Sentiment |\n"
+            section += "|--------|-----------|----------|---------|-------------|------------|-----------|"
 
-            for ticker, opt_data in options_data.items():
-                unusual = opt_data.get('unusual_activity', {})
-                if unusual.get('status') == 'Active':
-                    signal = unusual.get('signal', '⚪ Neutral')
-                    pc_ratio = unusual.get('put_call_ratio', 1.0)
-                    call_vol = unusual.get('call_volume', 0)
-                    put_vol = unusual.get('put_volume', 0)
-                    top_strikes = unusual.get('top_strikes', [])
-                    strikes_str = ', '.join([f"${s:.0f}" for s in top_strikes[:3]]) if top_strikes else 'N/A'
-                    sentiment = unusual.get('sentiment', 'neutral')
+            # Sort by put/call ratio (extreme values first)
+            sorted_options = sorted(options_data.items(),
+                                   key=lambda x: abs(x[1].get('put_call_ratio', 1) - 1),
+                                   reverse=True)
 
-                    section += f"\n| {ticker} | {signal} | {pc_ratio:.2f} | {call_vol:,} | {put_vol:,} | {strikes_str} | {sentiment} |"
+            for ticker, opt_data in sorted_options:
+                # Handle both yfinance and Massive.com data formats
+                pc_ratio = opt_data.get('put_call_ratio', opt_data.get('unusual_activity', {}).get('put_call_ratio', 0))
+                call_vol = opt_data.get('total_call_volume', opt_data.get('unusual_activity', {}).get('call_volume', 0))
+                put_vol = opt_data.get('total_put_volume', opt_data.get('unusual_activity', {}).get('put_volume', 0))
+                avg_call_iv = opt_data.get('avg_call_iv', 0)
+                avg_put_iv = opt_data.get('avg_put_iv', 0)
+                sentiment = opt_data.get('sentiment', 'NEUTRAL')
+
+                # Sentiment emoji
+                sent_emoji = '🟢' if sentiment == 'BULLISH' else ('🔴' if sentiment == 'BEARISH' else '⚪')
+
+                section += f"\n| {ticker} | {pc_ratio:.2f} | {call_vol:,} | {put_vol:,} | {avg_call_iv:.1f}% | {avg_put_iv:.1f}% | {sent_emoji} {sentiment} |"
 
             section += "\n\n**Key Takeaways:**"
 
             # Analyze overall flow
             bullish_count = sum(1 for opt in options_data.values()
-                              if opt.get('unusual_activity', {}).get('sentiment') == 'bullish')
+                              if opt.get('sentiment') == 'BULLISH')
             bearish_count = sum(1 for opt in options_data.values()
-                              if opt.get('unusual_activity', {}).get('sentiment') == 'bearish')
+                              if opt.get('sentiment') == 'BEARISH')
+            neutral_count = len(options_data) - bullish_count - bearish_count
 
-            section += f"\n- **Bullish Flow:** {bullish_count} tickers showing heavy call activity"
-            section += f"\n- **Bearish Flow:** {bearish_count} tickers showing put protection"
+            section += f"\n- **Bullish Flow:** {bullish_count} tickers (P/C < 0.7)"
+            section += f"\n- **Bearish Flow:** {bearish_count} tickers (P/C > 1.3)"
+            section += f"\n- **Neutral Flow:** {neutral_count} tickers"
 
-            # Find most interesting
+            # Find most bullish/bearish
+            most_bullish = min(options_data.items(), key=lambda x: x[1].get('put_call_ratio', 1), default=None)
+            most_bearish = max(options_data.items(), key=lambda x: x[1].get('put_call_ratio', 1), default=None)
+
+            if most_bullish and most_bullish[1].get('put_call_ratio', 1) < 0.7:
+                section += f"\n- **Most Bullish:** {most_bullish[0]} (P/C: {most_bullish[1].get('put_call_ratio', 0):.2f})"
+            if most_bearish and most_bearish[1].get('put_call_ratio', 1) > 1.3:
+                section += f"\n- **Most Bearish:** {most_bearish[0]} (P/C: {most_bearish[1].get('put_call_ratio', 0):.2f})"
+
+            # Show top strikes for highest volume tickers
+            section += "\n\n**Top Strike Prices (Highest Volume):**"
             for ticker, opt_data in sorted(options_data.items(),
-                                          key=lambda x: x[1].get('unusual_activity', {}).get('call_volume', 0),
-                                          reverse=True)[:2]:
-                unusual = opt_data.get('unusual_activity', {})
-                if unusual.get('call_volume', 0) > 0:
-                    section += f"\n- **{ticker}:** Aggressive upside bets detected (check top strikes for targets)"
+                                          key=lambda x: x[1].get('total_call_volume', 0) + x[1].get('total_put_volume', 0),
+                                          reverse=True)[:3]:
+                top_calls = opt_data.get('top_call_strikes', [])
+                top_puts = opt_data.get('top_put_strikes', [])
+                if top_calls or top_puts:
+                    call_strikes = ', '.join([f"${s.get('strike', 0):.0f}" for s in top_calls[:2]]) if top_calls else 'N/A'
+                    put_strikes = ', '.join([f"${s.get('strike', 0):.0f}" for s in top_puts[:2]]) if top_puts else 'N/A'
+                    section += f"\n- **{ticker}:** Calls at {call_strikes} | Puts at {put_strikes}"
 
         else:
             # No options data - show placeholder
-            section += "\n\n*Note: Options data requires Massive.com API integration. Run locally for real-time flow.*"
+            section += "\n\n*Note: Options data not available. Check API connectivity.*"
 
             section += "\n\n**When Available, You'll See:**"
             section += "\n- Real-time unusual options activity"
@@ -526,6 +556,58 @@ NVO, HIMS (healthcare stability)
             section += "\n- Top strike prices with heavy volume"
             section += "\n- Institutional vs retail flow patterns"
             section += "\n- Implied volatility changes"
+
+        self.sections.append(section)
+
+    def add_earnings_calendar(self, earnings_data=None):
+        """Add upcoming earnings calendar section."""
+        section = """## 12b. Upcoming Earnings Calendar
+
+**Watchlist Earnings Dates:**"""
+
+        if earnings_data and len(earnings_data) > 0:
+            section += "\n\n| Ticker | Earnings Date | Est. EPS Growth | Status |\n"
+            section += "|--------|---------------|-----------------|--------|"
+
+            # Sort by earnings date
+            from datetime import datetime
+            sorted_earnings = sorted(
+                earnings_data.items(),
+                key=lambda x: x[1].get('earnings_date', '9999-99-99')
+            )
+
+            for ticker, data in sorted_earnings:
+                date = data.get('earnings_date', 'TBD')
+                eps_growth = data.get('earnings_estimate')
+                eps_str = f"{eps_growth*100:.1f}%" if eps_growth else 'N/A'
+
+                # Determine if it's soon
+                try:
+                    days_until = (datetime.strptime(date[:10], '%Y-%m-%d') - datetime.now()).days
+                    if days_until < 0:
+                        status = 'PASSED'
+                    elif days_until <= 7:
+                        status = '🔴 THIS WEEK'
+                    elif days_until <= 14:
+                        status = '🟡 NEXT WEEK'
+                    else:
+                        status = '🟢 >2 WEEKS'
+                except:
+                    status = 'TBD'
+
+                section += f"\n| {ticker} | {date} | {eps_str} | {status} |"
+
+            # Count upcoming
+            upcoming_week = sum(1 for d in earnings_data.values()
+                               if 'THIS WEEK' in str(d.get('earnings_date', '')))
+
+            section += f"\n\n**Earnings Risk:** {len(earnings_data)} tickers with known dates"
+            section += "\n\n**Pre-Earnings Strategy:**"
+            section += "\n- Consider reducing position size 3-5 days before earnings"
+            section += "\n- Watch for IV crush opportunities post-earnings"
+            section += "\n- Set alerts for earnings date reminders"
+        else:
+            section += "\n\n*Earnings calendar data not available.*"
 
         self.sections.append(section)
 
@@ -547,14 +629,27 @@ NVO, HIMS (healthcare stability)
             momentum_20d = metric.get('momentum_20d', None)
             rel_vol = metric.get('relative_volume', 1.0)
 
+            # 52-week data
+            high_52w = data.get('high_52w')
+            low_52w = data.get('low_52w')
+            position_52w = data.get('position_52w')
+            pct_from_high = data.get('pct_from_high')
+
             card = f"""
 ### {ticker} - Conviction: {conviction:.1f}/5.0
 
 **Current Price:** ${data.get('close', 0):.2f} ({'+' if data.get('pct_change', 0) > 0 else ''}{data.get('pct_change', 0):.2f}%)
 **Volume:** {data.get('volume', 0):,.0f} (Rel Vol: {rel_vol:.2f}x)
-**Regime Fit:** {'Strong' if conviction >= 4 else 'Moderate' if conviction >= 3 else 'Weak'}
+**Regime Fit:** {'Strong' if conviction >= 4 else 'Moderate' if conviction >= 3 else 'Weak'}"""
 
-**Technical Indicators:**"""
+            # Add 52-week range if available
+            if high_52w and low_52w and position_52w is not None:
+                range_bar = self._create_range_bar(position_52w)
+                card += f"""
+**52-Week Range:** ${low_52w:.2f} {range_bar} ${high_52w:.2f}
+**Position:** {position_52w:.0f}% of range ({pct_from_high:+.1f}% from 52w high)"""
+
+            card += "\n\n**Technical Indicators:**"
 
             if rsi is not None:
                 rsi_signal = "Overbought" if rsi > 70 else "Oversold" if rsi < 30 else "Neutral"
