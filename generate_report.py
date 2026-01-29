@@ -11,7 +11,18 @@ from data_gatherer import (
 from calculator import Calculator
 from report_builder import ReportBuilder
 
-# Try to import Massive.com API integration
+# Try to import Massive.com S3 integration (flat files)
+try:
+    from data_gatherer_massive_s3 import (
+        fetch_ticker_data_s3,
+        fetch_options_data_s3,
+        discover_data_structure
+    )
+    MASSIVE_S3_AVAILABLE = True
+except ImportError:
+    MASSIVE_S3_AVAILABLE = False
+
+# Try to import Massive.com REST API integration (legacy)
 try:
     from data_gatherer_massive import (
         fetch_ticker_data_massive,
@@ -32,10 +43,28 @@ def gather_data(date):
     macro_data = {}
     options_data = {}
 
-    # Try Massive.com API first for enhanced data with options
-    if MASSIVE_API_AVAILABLE:
+    # Try Massive.com S3 first (flat files - most reliable)
+    if MASSIVE_S3_AVAILABLE and not ticker_data:
         try:
-            print("Attempting to fetch data using Massive.com API...")
+            print("Attempting to fetch data from Massive.com S3...")
+            ticker_data = fetch_ticker_data_s3(watchlist, date)
+
+            if ticker_data:
+                print("\nFetching options data from S3...")
+                options_data = fetch_options_data_s3(watchlist, date)
+
+                print(f"\n✓ Successfully fetched data via Massive.com S3")
+                print(f"  - Tickers: {len(ticker_data)}")
+                print(f"  - Options: {len(options_data)}")
+        except Exception as e:
+            print(f"\n⚠ Massive.com S3 failed: {str(e)}")
+            ticker_data = {}
+            options_data = {}
+
+    # Try Massive.com REST API (legacy Polygon-style)
+    if MASSIVE_API_AVAILABLE and not ticker_data:
+        try:
+            print("Attempting to fetch data using Massive.com REST API...")
 
             print("Fetching ticker data...")
             ticker_data = fetch_ticker_data_massive(watchlist, date)
