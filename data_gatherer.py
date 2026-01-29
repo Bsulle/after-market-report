@@ -275,6 +275,65 @@ def fetch_52week_data(ticker_data):
 
     return ticker_data
 
+
+def fetch_news_data(tickers):
+    """Fetch recent news for watchlist tickers using yfinance."""
+    news_data = {}
+
+    for ticker in tickers:
+        try:
+            stock = yf.Ticker(ticker)
+            news = stock.news
+
+            if news:
+                # Get top 3 recent news items
+                ticker_news = []
+                for item in news[:3]:
+                    ticker_news.append({
+                        'title': item.get('title', ''),
+                        'publisher': item.get('publisher', ''),
+                        'link': item.get('link', ''),
+                        'timestamp': item.get('providerPublishTime', 0),
+                        'type': item.get('type', 'STORY')
+                    })
+
+                if ticker_news:
+                    news_data[ticker] = ticker_news
+                    print(f"Fetched {len(ticker_news)} news items for {ticker}")
+
+        except Exception as e:
+            continue
+
+    return news_data
+
+
+# Sector mappings for context
+SECTOR_MAP = {
+    'ASTS': {'sector': 'Space/Satellite', 'industry': 'Telecommunications'},
+    'GRAB': {'sector': 'Technology', 'industry': 'Ride-Hailing/Super App'},
+    'MP': {'sector': 'Materials', 'industry': 'Rare Earth Mining'},
+    'ZETA': {'sector': 'Technology', 'industry': 'Marketing Technology'},
+    'JD': {'sector': 'Consumer Discretionary', 'industry': 'E-Commerce (China)'},
+    'SLDP': {'sector': 'Materials', 'industry': 'Battery Technology'},
+    'ACHR': {'sector': 'Industrials', 'industry': 'eVTOL/Urban Air Mobility'},
+    'NVO': {'sector': 'Healthcare', 'industry': 'Pharmaceuticals (Obesity/Diabetes)'},
+    'CRML': {'sector': 'Healthcare', 'industry': 'Biotech/Rare Disease'},
+    'MCRP': {'sector': 'Healthcare', 'industry': 'Medical Devices'},
+    'DLO': {'sector': 'Technology', 'industry': 'Fintech/Payments (LatAm)'},
+    'IREN': {'sector': 'Technology', 'industry': 'Bitcoin Mining/Data Centers'},
+    'OSCR': {'sector': 'Healthcare', 'industry': 'Health Insurance Tech'},
+    'TEM': {'sector': 'Healthcare', 'industry': 'AI Healthcare/Precision Medicine'},
+    'AUR': {'sector': 'Technology', 'industry': 'Autonomous Vehicles'},
+    'HIMS': {'sector': 'Healthcare', 'industry': 'Telehealth/DTC Healthcare'},
+    'JOBY': {'sector': 'Industrials', 'industry': 'eVTOL/Urban Air Mobility'},
+}
+
+
+def get_sector_info(ticker):
+    """Get sector and industry info for a ticker."""
+    return SECTOR_MAP.get(ticker, {'sector': 'Unknown', 'industry': 'Unknown'})
+
+
 if __name__ == '__main__':
     tickers = ['AAPL', 'MSFT', 'AMZN']
     ticker_data = fetch_ticker_data(tickers, '2026-01-21')

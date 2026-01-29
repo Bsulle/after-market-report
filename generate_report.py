@@ -6,7 +6,8 @@ import sys
 from config import watchlist
 from data_gatherer import (
     fetch_ticker_data, fetch_macro_data, fetch_breadth_data,
-    fetch_options_data, fetch_earnings_calendar, fetch_52week_data
+    fetch_options_data, fetch_earnings_calendar, fetch_52week_data,
+    fetch_news_data, get_sector_info
 )
 from calculator import Calculator
 from report_builder import ReportBuilder
@@ -110,12 +111,17 @@ def gather_data(date):
     print("\nFetching breadth data...")
     breadth_data = fetch_breadth_data()
 
+    # Fetch news for each ticker
+    print("\nFetching news data...")
+    news_data = fetch_news_data(watchlist)
+
     return {
         'ticker_data': ticker_data,
         'macro_data': macro_data,
         'breadth_data': breadth_data,
         'options_data': options_data,
-        'earnings_data': earnings_data
+        'earnings_data': earnings_data,
+        'news_data': news_data
     }
 
 def calculate_metrics(data):
@@ -176,6 +182,7 @@ def build_markdown_report(data, calculated_metrics):
         regime_components=calculated_metrics.get('regime_components'),
         options_data=data.get('options_data', {}),
         earnings_data=data.get('earnings_data', {}),
+        news_data=data.get('news_data', {}),
         prev_data=None  # Could be enhanced to load previous day's data
     )
 

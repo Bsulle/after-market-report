@@ -16,8 +16,13 @@ class ReportBuilder:
         bar = '[' + '=' * filled + '|' + '-' * (bar_length - filled) + ']'
         return bar
 
-    def build_report(self, ticker_data, macro_data, metrics, regime_score, regime_label, correlation_matrix, regime_components=None, options_data=None, earnings_data=None, prev_data=None):
+    def build_report(self, ticker_data, macro_data, metrics, regime_score, regime_label, correlation_matrix, regime_components=None, options_data=None, earnings_data=None, news_data=None, prev_data=None):
         """Build the complete markdown report."""
+        # Store data for use in ticker cards
+        self.options_data = options_data or {}
+        self.news_data = news_data or {}
+        self.regime_label = regime_label
+        self.regime_score = regime_score
 
         self.add_header()
         self.add_summary_stats(ticker_data, macro_data, regime_label, regime_score)
@@ -639,6 +644,170 @@ NVO, HIMS (healthcare stability)
 
         self.sections.append(section)
 
+    def _generate_coach_summary(self, ticker, data, metric, options_info=None, news_items=None):
+        """
+        Generate an intelligent, broker-level coach summary for a ticker.
+        Analyzes technicals, options flow, relative strength, and news.
+        """
+        from data_gatherer import get_sector_info
+
+        summary_parts = []
+
+        # Get sector info
+        sector_info = get_sector_info(ticker)
+        sector = sector_info.get('sector', 'Unknown')
+        industry = sector_info.get('industry', 'Unknown')
+
+        # Technical analysis
+        rsi = metric.get('rsi')
+        macd = metric.get('macd', {})
+        macd_hist = macd.get('histogram', 0) if macd else 0
+        above_ma_50 = data.get('above_ma_50', False)
+        pct_change = data.get('pct_change', 0)
+        rel_strength = metric.get('relative_strength')
+        gap_type = metric.get('gap_type')
+        gap_pct = metric.get('gap_pct', 0)
+        conviction = metric.get('conviction', 0)
+        position_52w = data.get('position_52w')
+        near_52w_high = data.get('near_52w_high', False)
+        near_52w_low = data.get('near_52w_low', False)
+        momentum_5d = metric.get('momentum_5d', 0)
+
+        # 1. PRICE ACTION ASSESSMENT
+        if gap_type == 'GAP_UP':
+            summary_parts.append(f"**Price Action:** Opened with a {gap_pct:+.1f}% gap up - watch for continuation or gap fill.")
+        elif gap_type == 'GAP_DOWN':
+            summary_parts.append(f"**Price Action:** Gap down of {gap_pct:.1f}% - potential capitulation or weakness signal.")
+        elif abs(pct_change) > 3:
+            direction = "strong bullish momentum" if pct_change > 0 else "significant selling pressure"
+            summary_parts.append(f"**Price Action:** {pct_change:+.2f}% move shows {direction}.")
+        else:
+            summary_parts.append(f"**Price Action:** Relatively quiet session ({pct_change:+.2f}%), consolidating near current levels.")
+
+        # 2. TECHNICAL SETUP
+        tech_signals = []
+        if rsi is not None:
+            if rsi > 70:
+                tech_signals.append("RSI overbought - potential pullback zone")
+            elif rsi < 30:
+                tech_signals.append("RSI oversold - potential bounce candidate")
+            elif 40 <= rsi <= 60:
+                tech_signals.append("RSI neutral territory")
+
+        if macd_hist > 0 and momentum_5d > 0:
+            tech_signals.append("MACD bullish with positive momentum")
+        elif macd_hist < 0 and momentum_5d < 0:
+            tech_signals.append("MACD bearish with negative momentum")
+
+        if above_ma_50:
+            tech_signals.append("trading above 50-day MA (bullish structure)")
+        else:
+            tech_signals.append("below 50-day MA (repair work needed)")
+
+        if tech_signals:
+            summary_parts.append(f"**Technical Setup:** {', '.join(tech_signals)}.")
+
+        # 3. 52-WEEK CONTEXT
+        if position_52w is not None:
+            if near_52w_high:
+                summary_parts.append("**52-Week Context:** Trading near 52-week highs - momentum traders in control, watch for breakout or reversal.")
+            elif near_52w_low:
+                summary_parts.append("**52-Week Context:** Near 52-week lows - high risk/reward setup. Watch for capitulation or base-building.")
+            elif position_52w > 70:
+                summary_parts.append(f"**52-Week Context:** In upper 30% of range ({position_52w:.0f}%) - strength but not extended.")
+            elif position_52w < 30:
+                summary_parts.append(f"**52-Week Context:** In lower 30% of range ({position_52w:.0f}%) - value territory but need catalyst.")
+            else:
+                summary_parts.append(f"**52-Week Context:** Mid-range at {position_52w:.0f}% - watch for directional breakout.")
+
+        # 4. RELATIVE STRENGTH
+        if rel_strength is not None:
+            if rel_strength > 10:
+                summary_parts.append(f"**Relative Strength:** Significantly outperforming SPY ({rel_strength:+.1f}% over 20 days) - institutional accumulation likely.")
+            elif rel_strength > 5:
+                summary_parts.append(f"**Relative Strength:** Outperforming market ({rel_strength:+.1f}% vs SPY) - showing leadership.")
+            elif rel_strength < -10:
+                summary_parts.append(f"**Relative Strength:** Underperforming SPY by {abs(rel_strength):.1f}% - potential distribution or sector rotation away.")
+            elif rel_strength < -5:
+                summary_parts.append(f"**Relative Strength:** Lagging market ({rel_strength:+.1f}% vs SPY) - needs catalyst to catch up.")
+
+        # 5. OPTIONS FLOW ANALYSIS
+        if options_info:
+            pc_ratio = options_info.get('put_call_ratio', 1)
+            sentiment = options_info.get('sentiment', 'NEUTRAL')
+            call_vol = options_info.get('total_call_volume', 0)
+            put_vol = options_info.get('total_put_volume', 0)
+            avg_call_iv = options_info.get('avg_call_iv', 0)
+
+            if sentiment == 'BULLISH' and pc_ratio < 0.5:
+                summary_parts.append(f"**Options Flow:** Heavy call buying (P/C: {pc_ratio:.2f}) - bullish institutional positioning.")
+            elif sentiment == 'BULLISH':
+                summary_parts.append(f"**Options Flow:** Call-heavy flow (P/C: {pc_ratio:.2f}) suggests bullish sentiment.")
+            elif sentiment == 'BEARISH' and pc_ratio > 1.5:
+                summary_parts.append(f"**Options Flow:** Elevated put activity (P/C: {pc_ratio:.2f}) - hedging or bearish bets in play.")
+            elif sentiment == 'BEARISH':
+                summary_parts.append(f"**Options Flow:** Put-heavy flow (P/C: {pc_ratio:.2f}) indicates caution.")
+            else:
+                summary_parts.append(f"**Options Flow:** Balanced positioning (P/C: {pc_ratio:.2f}) - no strong directional bias.")
+
+            if avg_call_iv > 60:
+                summary_parts.append(f"  - Elevated IV ({avg_call_iv:.0f}%) - expect large moves, consider selling premium.")
+
+        # 6. NEWS & CATALYSTS
+        if news_items and len(news_items) > 0:
+            summary_parts.append("**Recent News:**")
+            for item in news_items[:2]:  # Show top 2 news items
+                title = item.get('title', '')
+                publisher = item.get('publisher', '')
+                if title:
+                    # Truncate long titles
+                    if len(title) > 80:
+                        title = title[:77] + "..."
+                    summary_parts.append(f"  - \"{title}\" ({publisher})")
+        else:
+            summary_parts.append(f"**Sector Context:** {industry} within {sector} - monitor sector-level catalysts and rotation.")
+
+        # 7. REGIME FIT
+        regime_fit = ""
+        if self.regime_label == "RISK-ON":
+            if conviction >= 4 and above_ma_50:
+                regime_fit = "Excellent regime fit - high-conviction setup in risk-on environment. Consider adding on dips."
+            elif conviction >= 3:
+                regime_fit = "Good regime fit - favorable conditions for swing trades. Set tight stops."
+            else:
+                regime_fit = "Below-average conviction despite risk-on regime - better opportunities elsewhere."
+        elif self.regime_label == "TRANSITIONAL":
+            if conviction >= 4:
+                regime_fit = "Quality setup in uncertain market - size down but keep on radar."
+            else:
+                regime_fit = "Mixed regime calls for selectivity - wait for regime clarity before committing capital."
+        else:  # RISK-OFF
+            if above_ma_50 and rel_strength and rel_strength > 0:
+                regime_fit = "Holding up well in risk-off - potential relative strength play but size appropriately."
+            else:
+                regime_fit = "Risk-off environment - prioritize capital preservation over returns."
+
+        summary_parts.append(f"**Coach's Take:** {regime_fit}")
+
+        # 8. ACTIONABLE RECOMMENDATION
+        action = ""
+        if conviction >= 4.5 and above_ma_50 and (rsi is None or rsi < 70):
+            action = "🎯 **Action:** Add to position on pullback to support. Strong conviction setup."
+        elif conviction >= 4 and (rsi is not None and rsi < 35):
+            action = "👀 **Action:** Oversold with high conviction - consider starter position with tight stop."
+        elif conviction >= 3.5 and above_ma_50:
+            action = "📋 **Action:** Hold existing position. Add only on confirmed breakout above resistance."
+        elif conviction < 2.5 or (rsi is not None and rsi > 75):
+            action = "⚠️ **Action:** Reduce exposure or avoid. Unfavorable risk/reward at current levels."
+        elif not above_ma_50 and momentum_5d < -3:
+            action = "🛑 **Action:** Repair mode - wait for reclaim of 50-day MA before considering entry."
+        else:
+            action = "⏳ **Action:** Monitor for better entry. Current setup is neutral - patience warranted."
+
+        summary_parts.append(action)
+
+        return "\n".join(summary_parts)
+
     def add_ticker_cards(self, ticker_data, metrics):
         """Add detailed ticker analysis cards with technical indicators."""
         section = "## 13. Full Ticker Cards"
@@ -754,9 +923,23 @@ NVO, HIMS (healthcare stability)
 - ATR Target (3x): ${atr_target:.2f}
 - Risk/Reward: 1:1.5"""
 
+            # Get options and news data for this ticker
+            ticker_options = self.options_data.get(ticker, {})
+            ticker_news = self.news_data.get(ticker, [])
+
+            # Generate intelligent coach summary
+            coach_summary = self._generate_coach_summary(
+                ticker, data, metric,
+                options_info=ticker_options,
+                news_items=ticker_news
+            )
+
             card += f"""
 
-**Coach Summary:** {'🚀 GAP ALERT - ' if gap_type else ''}Monitor price action around pivot levels. Conviction score of {conviction:.1f} suggests {'high priority' if conviction >= 4 else 'moderate watch' if conviction >= 3 else 'low priority'}."""
+---
+**COACH SUMMARY:**
+
+{coach_summary}"""
 
             section += card
 
