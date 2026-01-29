@@ -8,17 +8,59 @@ from data_gatherer import fetch_ticker_data, fetch_macro_data, fetch_breadth_dat
 from calculator import Calculator
 from report_builder import ReportBuilder
 
+# Try to import Massive.com API integration
+try:
+    from data_gatherer_massive import (
+        fetch_ticker_data_massive,
+        fetch_options_data_massive,
+        fetch_macro_data_massive
+    )
+    MASSIVE_API_AVAILABLE = True
+except ImportError:
+    MASSIVE_API_AVAILABLE = False
+
 def gather_data(date):
     """Gather all market data for the specified date."""
     print(f"\n{'='*60}")
     print(f"Fetching market data for {date}")
     print(f"{'='*60}\n")
 
-    print("Fetching ticker data...")
-    ticker_data = fetch_ticker_data(watchlist, date)
+    ticker_data = {}
+    macro_data = {}
+    options_data = {}
 
-    print("\nFetching macro data...")
-    macro_data = fetch_macro_data(date)
+    # Try Massive.com API first for enhanced data with options
+    if MASSIVE_API_AVAILABLE:
+        try:
+            print("Attempting to fetch data using Massive.com API...")
+
+            print("Fetching ticker data...")
+            ticker_data = fetch_ticker_data_massive(watchlist, date)
+
+            if ticker_data:
+                print("\nFetching options data...")
+                options_data = fetch_options_data_massive(watchlist, date)
+
+                print("\nFetching macro data...")
+                macro_data = fetch_macro_data_massive(date)
+
+                print(f"\n✓ Successfully fetched data via Massive.com API")
+                print(f"  - Tickers: {len(ticker_data)}")
+                print(f"  - Options: {len(options_data)}")
+                print(f"  - Macro indicators: {len(macro_data)}")
+        except Exception as e:
+            print(f"\n⚠ Massive.com API failed: {str(e)}")
+            print("Falling back to yfinance...")
+            ticker_data = {}
+            options_data = {}
+
+    # Fallback to yfinance if Massive.com unavailable or failed
+    if not ticker_data:
+        print("Fetching ticker data via yfinance...")
+        ticker_data = fetch_ticker_data(watchlist, date)
+
+        print("\nFetching macro data via yfinance...")
+        macro_data = fetch_macro_data(date)
 
     print("\nFetching breadth data...")
     breadth_data = fetch_breadth_data()
@@ -26,7 +68,8 @@ def gather_data(date):
     return {
         'ticker_data': ticker_data,
         'macro_data': macro_data,
-        'breadth_data': breadth_data
+        'breadth_data': breadth_data,
+        'options_data': options_data
     }
 
 def calculate_metrics(data):
@@ -84,7 +127,9 @@ def build_markdown_report(data, calculated_metrics):
         regime_score=calculated_metrics['regime_score'],
         regime_label=calculated_metrics['regime_label'],
         correlation_matrix=calculated_metrics['correlation_matrix'],
-        regime_components=calculated_metrics.get('regime_components')
+        regime_components=calculated_metrics.get('regime_components'),
+        options_data=data.get('options_data', {}),
+        prev_data=None  # Could be enhanced to load previous day's data
     )
 
     return report
