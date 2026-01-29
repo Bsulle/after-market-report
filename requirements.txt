@@ -6,3 +6,5 @@ beautifulsoup4
 lxml
 python-dateutil
 pytz
+flask
+flask-cors
