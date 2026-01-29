@@ -174,7 +174,7 @@ if __name__ == '__main__':
 
         # Save to file
         filename = f"After_Market_Report_{args.date}.md"
-        with open(filename, 'w') as f:
+        with open(filename, 'w', encoding='utf-8') as f:
             f.write(report)
 
         print(f"\n{'='*60}")
