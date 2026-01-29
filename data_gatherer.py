@@ -19,8 +19,9 @@ def fetch_ticker_data(tickers, date_str):
                 print(f"Warning: No data for {ticker}")
                 continue
 
-            # Get data up to target date
-            hist = hist[hist.index <= target_date]
+            # Get data up to target date (handle timezone-aware index)
+            hist_index_naive = hist.index.tz_localize(None) if hist.index.tz is not None else hist.index
+            hist = hist[hist_index_naive <= target_date]
 
             if hist.empty:
                 print(f"Warning: No data for {ticker} up to {date_str}")
@@ -94,7 +95,9 @@ def fetch_macro_data(date_str):
                 print(f"Warning: No data for {name} ({ticker})")
                 continue
 
-            hist = hist[hist.index <= target_date]
+            # Handle timezone-aware index
+            hist_index_naive = hist.index.tz_localize(None) if hist.index.tz is not None else hist.index
+            hist = hist[hist_index_naive <= target_date]
 
             if hist.empty:
                 print(f"Warning: No data for {name} ({ticker}) up to {date_str}")
