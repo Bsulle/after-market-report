@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game of Thrones: Claim the Iron Throne</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Crimson+Text&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Crimson Text', serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+            min-height: 100vh;
+            color: #d4af37;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0;
+            border-bottom: 2px solid #d4af37;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            letter-spacing: 3px;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            color: #888;
+            margin-top: 10px;
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-around;
+            background: rgba(0,0,0,0.4);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 1px solid #333;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #d4af37;
+        }
+
+        .stat-bar {
+            width: 100px;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+
+        .stat-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .power-fill { background: linear-gradient(90deg, #8b0000, #dc143c); }
+        .gold-fill { background: linear-gradient(90deg, #b8860b, #ffd700); }
+        .honor-fill { background: linear-gradient(90deg, #1e3a5f, #4169e1); }
+        .army-fill { background: linear-gradient(90deg, #2f4f2f, #228b22); }
+
+        .game-area {
+            background: rgba(0,0,0,0.5);
+            border-radius: 15px;
+            padding: 30px;
+            border: 2px solid #444;
+            min-height: 400px;
+        }
+
+        .scene-image {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(45deg, #2a1a1a, #1a2a2a);
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4em;
+            border: 1px solid #555;
+        }
+
+        .story-text {
+            font-size: 1.3em;
+            line-height: 1.8;
+            margin-bottom: 30px;
+            color: #ccc;
+        }
+
+        .choices {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .choice-btn {
+            background: linear-gradient(135deg, #2a2a4a 0%, #1a1a3a 100%);
+            border: 2px solid #d4af37;
+            color: #d4af37;
+            padding: 18px 25px;
+            font-size: 1.1em;
+            font-family: 'Crimson Text', serif;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+
+        .choice-btn:hover {
+            background: linear-gradient(135deg, #3a3a6a 0%, #2a2a5a 100%);
+            transform: translateX(10px);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+        }
+
+        .choice-btn:active {
+            transform: scale(0.98);
+        }
+
+        .house-select {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .house-card {
+            background: rgba(0,0,0,0.6);
+            border: 2px solid #555;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .house-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .house-card.stark { border-color: #708090; }
+        .house-card.stark:hover { background: rgba(112,128,144,0.2); }
+
+        .house-card.lannister { border-color: #c9a227; }
+        .house-card.lannister:hover { background: rgba(201,162,39,0.2); }
+
+        .house-card.targaryen { border-color: #8b0000; }
+        .house-card.targaryen:hover { background: rgba(139,0,0,0.2); }
+
+        .house-card.baratheon { border-color: #ffd700; }
+        .house-card.baratheon:hover { background: rgba(255,215,0,0.2); }
+
+        .house-sigil {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .house-name {
+            font-family: 'Cinzel', serif;
+            font-size: 1.3em;
+            margin-bottom: 10px;
+        }
+
+        .house-words {
+            font-style: italic;
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .game-over {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .game-over h2 {
+            font-family: 'Cinzel', serif;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .victory { color: #ffd700; }
+        .defeat { color: #8b0000; }
+
+        .restart-btn {
+            background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+            border: none;
+            color: #1a1a2e;
+            padding: 15px 40px;
+            font-size: 1.2em;
+            font-family: 'Cinzel', serif;
+            cursor: pointer;
+            border-radius: 8px;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .restart-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.5);
+        }
+
+        .event-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f23 100%);
+            border: 3px solid #d4af37;
+            border-radius: 15px;
+            padding: 30px;
+            z-index: 1000;
+            max-width: 500px;
+            text-align: center;
+            display: none;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 999;
+            display: none;
+        }
+
+        .turn-counter {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-family: 'Cinzel', serif;
+            font-size: 1.2em;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        .dragon-animation {
+            position: fixed;
+            font-size: 3em;
+            pointer-events: none;
+            z-index: 100;
+            animation: flyDragon 8s linear infinite;
+        }
+
+        @keyframes flyDragon {
+            0% { left: -100px; top: 10%; }
+            100% { left: 110%; top: 30%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dragon-animation">🐉</div>
+
+    <div class="container">
+        <header>
+            <h1>⚔️ GAME OF THRONES ⚔️</h1>
+            <p class="subtitle">Claim the Iron Throne</p>
+        </header>
+
+        <div class="stats-bar" id="statsBar" style="display: none;">
+            <div class="stat">
+                <div class="stat-label">👑 Power</div>
+                <div class="stat-value" id="powerValue">50</div>
+                <div class="stat-bar"><div class="stat-fill power-fill" id="powerBar" style="width: 50%"></div></div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">💰 Gold</div>
+                <div class="stat-value" id="goldValue">50</div>
+                <div class="stat-bar"><div class="stat-fill gold-fill" id="goldBar" style="width: 50%"></div></div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">⚖️ Honor</div>
+                <div class="stat-value" id="honorValue">50</div>
+                <div class="stat-bar"><div class="stat-fill honor-fill" id="honorBar" style="width: 50%"></div></div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">⚔️ Army</div>
+                <div class="stat-value" id="armyValue">50</div>
+                <div class="stat-bar"><div class="stat-fill army-fill" id="armyBar" style="width: 50%"></div></div>
+            </div>
+        </div>
+
+        <div class="game-area" id="gameArea">
+            <!-- Game content will be inserted here -->
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+    <div class="event-popup" id="eventPopup"></div>
+
+    <script>
+        // Game State
+        let gameState = {
+            house: null,
+            power: 50,
+            gold: 50,
+            honor: 50,
+            army: 50,
+            turn: 1,
+            allies: [],
+            enemies: [],
+            decisions: []
+        };
+
+        const houses = {
+            stark: { name: 'Stark', sigil: '🐺', words: 'Winter is Coming', bonus: 'honor' },
+            lannister: { name: 'Lannister', sigil: '🦁', words: 'Hear Me Roar', bonus: 'gold' },
+            targaryen: { name: 'Targaryen', sigil: '🐉', words: 'Fire and Blood', bonus: 'power' },
+            baratheon: { name: 'Baratheon', sigil: '🦌', words: 'Ours is the Fury', bonus: 'army' }
+        };
+
+        const scenarios = [
+            {
+                id: 'ravens_message',
+                title: '📜 A Raven Arrives',
+                image: '📜',
+                text: 'A raven arrives bearing dark news. The King has died under mysterious circumstances. The realm needs a new ruler. Various factions are already maneuvering for power.',
+                choices: [
+                    { text: '⚔️ March to King\'s Landing immediately', effects: { power: 15, army: -10, honor: -5 } },
+                    { text: '💰 Send gold to buy allies in the capital', effects: { gold: -20, power: 10 } },
+                    { text: '📜 Send ravens seeking alliances', effects: { honor: 10, power: 5 } },
+                    { text: '🏰 Fortify your castle and wait', effects: { army: 10, gold: -5 } }
+                ]
+            },
+            {
+                id: 'betrayal',
+                title: '🗡️ A Plot Uncovered',
+                image: '🗡️',
+                text: 'Your spymaster reveals that one of your bannermen is plotting against you. They\'ve been seen meeting with your rivals in secret.',
+                choices: [
+                    { text: '⚔️ Execute the traitor publicly', effects: { power: 10, honor: -15, army: -5 } },
+                    { text: '🔗 Imprison them and demand ransom', effects: { gold: 20, honor: -5 } },
+                    { text: '🤝 Offer them forgiveness and a new position', effects: { honor: 15, power: -5 } },
+                    { text: '🕵️ Feed them false information', effects: { power: 15, gold: -10 } }
+                ]
+            },
+            {
+                id: 'wildlings',
+                title: '❄️ Wildlings at the Gate',
+                image: '❄️',
+                text: 'Thousands of wildlings are fleeing south. They claim something terrible is coming. They beg for passage through your lands.',
+                choices: [
+                    { text: '⚔️ Destroy them at the border', effects: { army: -15, power: 10, honor: -20 } },
+                    { text: '🤝 Let them through and recruit fighters', effects: { army: 20, honor: 10, gold: -15 } },
+                    { text: '💰 Demand payment for passage', effects: { gold: 25, honor: -10 } },
+                    { text: '🏰 Close the gates and ignore them', effects: { honor: -5, army: 5 } }
+                ]
+            },
+            {
+                id: 'tournament',
+                title: '🏆 The Great Tournament',
+                image: '🏆',
+                text: 'Lords from across the realm gather for a grand tournament. This is an opportunity to display your house\'s strength and forge alliances.',
+                choices: [
+                    { text: '💰 Host a lavish feast to impress everyone', effects: { gold: -30, power: 20, honor: 10 } },
+                    { text: '⚔️ Enter the melee yourself', effects: { power: 15, army: 10, honor: 5 } },
+                    { text: '🕵️ Use the gathering to spy on rivals', effects: { power: 10, honor: -10 } },
+                    { text: '🤝 Arrange a strategic marriage', effects: { power: 15, gold: 10 } }
+                ]
+            },
+            {
+                id: 'dragon_egg',
+                title: '🥚 The Dragon Egg',
+                image: '🥚',
+                text: 'A merchant offers you what he claims is a genuine dragon egg. The price is steep, but if real, it could change everything.',
+                choices: [
+                    { text: '💰 Pay the full price immediately', effects: { gold: -40, power: 30 } },
+                    { text: '🗡️ Take it by force', effects: { power: 20, honor: -25, gold: 10 } },
+                    { text: '🕵️ Have your maester verify it first', effects: { gold: -10, honor: 5 } },
+                    { text: '❌ Decline - it\'s probably fake', effects: { honor: 5 } }
+                ]
+            },
+            {
+                id: 'siege',
+                title: '🏰 Under Siege',
+                image: '🏰',
+                text: 'Enemy forces have surrounded your castle! Your food stores will last a moon\'s turn. Your enemies demand your surrender.',
+                choices: [
+                    { text: '⚔️ Lead a desperate charge', effects: { army: -20, power: 25, honor: 15 } },
+                    { text: '💰 Bribe their commanders', effects: { gold: -35, army: 10 } },
+                    { text: '📜 Negotiate a truce', effects: { power: -10, honor: 5, gold: -10 } },
+                    { text: '🕳️ Escape through secret tunnels', effects: { power: -15, gold: -20, army: -10 } }
+                ]
+            },
+            {
+                id: 'red_wedding',
+                title: '🍷 A Wedding Invitation',
+                image: '🍷',
+                text: 'You\'ve received an invitation to a wedding at a rival\'s castle. Your advisors are divided - some see opportunity, others sense a trap.',
+                choices: [
+                    { text: '🎭 Attend with full guard', effects: { gold: -15, honor: 10, army: -5 } },
+                    { text: '📜 Send a representative instead', effects: { honor: -5, power: -5 } },
+                    { text: '❌ Decline and prepare for war', effects: { army: 15, power: 10, honor: -10 } },
+                    { text: '🕵️ Send spies ahead to investigate', effects: { gold: -10, power: 10 } }
+                ]
+            },
+            {
+                id: 'faceless_men',
+                title: '🎭 The Faceless Men',
+                image: '🎭',
+                text: 'A mysterious stranger offers the services of the Faceless Men. They can eliminate any one person in the realm... for a price.',
+                choices: [
+                    { text: '💰 Pay to eliminate your greatest rival', effects: { gold: -50, power: 35, honor: -30 } },
+                    { text: '🗡️ Arrest the stranger', effects: { honor: 15, power: -10 } },
+                    { text: '🤝 Decline politely', effects: { honor: 10 } },
+                    { text: '🕵️ Ask them to spy instead', effects: { gold: -25, power: 20, honor: -10 } }
+                ]
+            },
+            {
+                id: 'iron_bank',
+                title: '🏦 The Iron Bank',
+                image: '🏦',
+                text: 'Representatives from the Iron Bank of Braavos arrive. They offer a substantial loan, but the Iron Bank always gets its due.',
+                choices: [
+                    { text: '💰 Accept the maximum loan', effects: { gold: 50, power: 10 } },
+                    { text: '📜 Negotiate a smaller loan', effects: { gold: 25, honor: 5 } },
+                    { text: '❌ Refuse - you won\'t be in debt', effects: { honor: 10, power: -5 } },
+                    { text: '🗡️ Threaten them to leave', effects: { power: 5, honor: -20, gold: -10 } }
+                ]
+            },
+            {
+                id: 'white_walkers',
+                title: '💀 The Dead Walk',
+                image: '💀',
+                text: 'Terrifying reports come from the North. The dead are rising. An ancient evil awakens. The realm must unite or fall.',
+                choices: [
+                    { text: '⚔️ March North with your full army', effects: { army: -25, honor: 30, power: 20 } },
+                    { text: '📜 Call for an alliance of all houses', effects: { honor: 20, power: 15 } },
+                    { text: '🏰 Fortify and prepare to defend', effects: { army: 15, gold: -20 } },
+                    { text: '❌ Dismiss it as Northern nonsense', effects: { gold: 10, honor: -15 } }
+                ]
+            }
+        ];
+
+        let usedScenarios = [];
+
+        function init() {
+            showHouseSelection();
+        }
+
+        function showHouseSelection() {
+            const gameArea = document.getElementById('gameArea');
+            gameArea.innerHTML = `
+                <div class="fade-in">
+                    <div class="scene-image">👑</div>
+                    <div class="story-text">
+                        The realm is in chaos. Great houses vie for power as the Iron Throne stands empty.
+                        Choose your house wisely, for this decision will shape your destiny...
+                    </div>
+                    <div class="house-select">
+                        <div class="house-card stark" onclick="selectHouse('stark')">
+                            <div class="house-sigil">🐺</div>
+                            <div class="house-name">House Stark</div>
+                            <div class="house-words">"Winter is Coming"</div>
+                            <small style="color: #4169e1;">+10 Honor</small>
+                        </div>
+                        <div class="house-card lannister" onclick="selectHouse('lannister')">
+                            <div class="house-sigil">🦁</div>
+                            <div class="house-name">House Lannister</div>
+                            <div class="house-words">"Hear Me Roar"</div>
+                            <small style="color: #ffd700;">+10 Gold</small>
+                        </div>
+                        <div class="house-card targaryen" onclick="selectHouse('targaryen')">
+                            <div class="house-sigil">🐉</div>
+                            <div class="house-name">House Targaryen</div>
+                            <div class="house-words">"Fire and Blood"</div>
+                            <small style="color: #dc143c;">+10 Power</small>
+                        </div>
+                        <div class="house-card baratheon" onclick="selectHouse('baratheon')">
+                            <div class="house-sigil">🦌</div>
+                            <div class="house-name">House Baratheon</div>
+                            <div class="house-words">"Ours is the Fury"</div>
+                            <small style="color: #228b22;">+10 Army</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function selectHouse(house) {
+            gameState.house = houses[house];
+
+            // Apply house bonus
+            if (house === 'stark') gameState.honor += 10;
+            if (house === 'lannister') gameState.gold += 10;
+            if (house === 'targaryen') gameState.power += 10;
+            if (house === 'baratheon') gameState.army += 10;
+
+            document.getElementById('statsBar').style.display = 'flex';
+            updateStats();
+            nextScenario();
+        }
+
+        function getRandomScenario() {
+            const available = scenarios.filter(s => !usedScenarios.includes(s.id));
+            if (available.length === 0) {
+                usedScenarios = [];
+                return scenarios[Math.floor(Math.random() * scenarios.length)];
+            }
+            const scenario = available[Math.floor(Math.random() * available.length)];
+            usedScenarios.push(scenario.id);
+            return scenario;
+        }
+
+        function nextScenario() {
+            if (checkGameOver()) return;
+
+            gameState.turn++;
+            const scenario = getRandomScenario();
+            showScenario(scenario);
+        }
+
+        function showScenario(scenario) {
+            const gameArea = document.getElementById('gameArea');
+            let choicesHTML = scenario.choices.map((choice, index) => `
+                <button class="choice-btn" onclick="makeChoice(${index}, ${JSON.stringify(choice.effects).replace(/"/g, '&quot;')})">
+                    ${choice.text}
+                </button>
+            `).join('');
+
+            gameArea.innerHTML = `
+                <div class="fade-in">
+                    <div style="position: relative;">
+                        <div class="turn-counter">Turn ${gameState.turn}</div>
+                    </div>
+                    <h2 style="font-family: 'Cinzel', serif; margin-bottom: 20px; color: #d4af37;">
+                        ${scenario.title}
+                    </h2>
+                    <div class="scene-image">${scenario.image}</div>
+                    <div class="story-text">${scenario.text}</div>
+                    <div class="choices">${choicesHTML}</div>
+                </div>
+            `;
+        }
+
+        function makeChoice(choiceIndex, effects) {
+            // Apply effects
+            for (let stat in effects) {
+                gameState[stat] = Math.max(0, Math.min(100, gameState[stat] + effects[stat]));
+            }
+
+            updateStats();
+            showEffects(effects);
+        }
+
+        function showEffects(effects) {
+            const overlay = document.getElementById('overlay');
+            const popup = document.getElementById('eventPopup');
+
+            let effectsText = Object.entries(effects).map(([stat, value]) => {
+                const icon = { power: '👑', gold: '💰', honor: '⚖️', army: '⚔️' }[stat];
+                const color = value > 0 ? '#4CAF50' : '#f44336';
+                return `<div style="color: ${color}; font-size: 1.3em; margin: 5px 0;">
+                    ${icon} ${stat.charAt(0).toUpperCase() + stat.slice(1)}: ${value > 0 ? '+' : ''}${value}
+                </div>`;
+            }).join('');
+
+            popup.innerHTML = `
+                <h3 style="font-family: 'Cinzel', serif; margin-bottom: 20px;">Your Decision</h3>
+                ${effectsText}
+                <button class="restart-btn" onclick="closePopup()">Continue</button>
+            `;
+
+            overlay.style.display = 'block';
+            popup.style.display = 'block';
+        }
+
+        function closePopup() {
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('eventPopup').style.display = 'none';
+            nextScenario();
+        }
+
+        function updateStats() {
+            document.getElementById('powerValue').textContent = gameState.power;
+            document.getElementById('goldValue').textContent = gameState.gold;
+            document.getElementById('honorValue').textContent = gameState.honor;
+            document.getElementById('armyValue').textContent = gameState.army;
+
+            document.getElementById('powerBar').style.width = gameState.power + '%';
+            document.getElementById('goldBar').style.width = gameState.gold + '%';
+            document.getElementById('honorBar').style.width = gameState.honor + '%';
+            document.getElementById('armyBar').style.width = gameState.army + '%';
+        }
+
+        function checkGameOver() {
+            // Victory condition
+            if (gameState.power >= 100) {
+                showEnding('victory', 'You Claimed the Iron Throne!',
+                    `House ${gameState.house.name} now rules the Seven Kingdoms. Your name will be remembered for generations. Long may you reign!`);
+                return true;
+            }
+
+            // Defeat conditions
+            if (gameState.power <= 0) {
+                showEnding('defeat', 'Your House Has Fallen',
+                    'Without power, your enemies moved against you. Your house is destroyed, your name forgotten.');
+                return true;
+            }
+            if (gameState.gold <= 0) {
+                showEnding('defeat', 'Bankruptcy and Ruin',
+                    'Without gold, you could not pay your soldiers or maintain your holdings. Your house crumbled from within.');
+                return true;
+            }
+            if (gameState.honor <= 0) {
+                showEnding('defeat', 'The Realm Turns Against You',
+                    'Your dishonorable actions united the realm against you. No one would stand by your side.');
+                return true;
+            }
+            if (gameState.army <= 0) {
+                showEnding('defeat', 'Defenseless',
+                    'Without an army, you could not protect your lands. Your enemies struck without mercy.');
+                return true;
+            }
+
+            return false;
+        }
+
+        function showEnding(type, title, text) {
+            const gameArea = document.getElementById('gameArea');
+            gameArea.innerHTML = `
+                <div class="game-over fade-in">
+                    <h2 class="${type}">${type === 'victory' ? '👑' : '💀'} ${title}</h2>
+                    <div class="scene-image">${type === 'victory' ? '🏰' : '⚰️'}</div>
+                    <p class="story-text">${text}</p>
+                    <p style="color: #888;">You survived ${gameState.turn} turns as House ${gameState.house.name}</p>
+                    <button class="restart-btn" onclick="restartGame()">Play Again</button>
+                </div>
+            `;
+            document.getElementById('statsBar').style.display = 'none';
+        }
+
+        function restartGame() {
+            gameState = {
+                house: null,
+                power: 50,
+                gold: 50,
+                honor: 50,
+                army: 50,
+                turn: 0,
+                allies: [],
+                enemies: [],
+                decisions: []
+            };
+            usedScenarios = [];
+            init();
+        }
+
+        // Initialize the game
+        init();
+    </script>
+</body>
+</html>
