@@ -1,10 +1,10 @@
-# Watchlist configuration
+# Watchlist configuration (after-market report + thesis tickers)
 watchlist = [
-    'ASTS', 'GRAB', 'MP', 'ZETA', 
-    'JD', 'SLDP', 'ACHR', 'NVO', 
-    'CRML', 'MCRP', 'DLO', 'IREN', 
-    'OSCR', 'TEM', 'AUR', 'HIMS', 
-    'JOBY'
+    'ASTS', 'GRAB', 'MP', 'ZETA',
+    'JD', 'SLDP', 'ACHR', 'NVO',
+    'CRML', 'MCRP', 'DLO', 'IREN',
+    'OSCR', 'TEM', 'AUR', 'HIMS',
+    'JOBY', 'NBIS', 'PATH', 'OKLO'
 ]
 
 # Regime thresholds
@@ -18,9 +18,10 @@ thresholds = {
         'XLC': 'Communication Services',
         'XLI': 'Industrials',
         'XLB': 'Materials',
-        'XLC': 'Consumer Discretionary',
-        'XLI': 'Industrials',
-        'XLB': 'Materials',
-        'XLY': 'Consumer Discretionary'
+        'XLK': 'Technology',
+        'XLE': 'Energy',
+        'XLV': 'Healthcare',
+        'XLRE': 'Real Estate',
+        'XLU': 'Utilities'
     }
 }
