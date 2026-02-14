@@ -130,18 +130,46 @@ def fetch_macro_data(date_str):
     return macro_data
 
 def fetch_breadth_data():
-    """Fetch market breadth indicators."""
+    """
+    Fetch market breadth using SPY component ETFs and broad market data.
+    Uses sector ETFs to approximate advance/decline breadth.
+    """
+    breadth_tickers = ['SPY', 'QQQ', 'IWM', 'DIA',
+                       'XLF', 'XLK', 'XLV', 'XLE', 'XLY',
+                       'XLP', 'XLC', 'XLI', 'XLB', 'XLU', 'XLRE']
+
+    advancers = 0
+    decliners = 0
+    unchanged = 0
+
+    for ticker in breadth_tickers:
+        try:
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period='5d')
+            if len(hist) >= 2:
+                pct = ((hist['Close'].iloc[-1] - hist['Close'].iloc[-2]) / hist['Close'].iloc[-2]) * 100
+                if pct > 0.05:
+                    advancers += 1
+                elif pct < -0.05:
+                    decliners += 1
+                else:
+                    unchanged += 1
+        except:
+            continue
+
+    total = advancers + decliners + unchanged
+    ad_ratio = advancers / decliners if decliners > 0 else advancers
+
     breadth_data = {
-        'advancers': 0,
-        'decliners': 0,
-        'new_highs_52w': 0,
-        'new_lows_52w': 0,
-        'ad_ratio': 1.0
+        'advancers': advancers,
+        'decliners': decliners,
+        'unchanged': unchanged,
+        'total_measured': total,
+        'ad_ratio': round(ad_ratio, 2),
+        'pct_advancing': round(advancers / total * 100, 1) if total > 0 else 50.0,
     }
 
-    # Note: Real breadth data would come from market data providers
-    # This is a placeholder
-
+    print(f"Breadth: {advancers} advancing, {decliners} declining (A/D={ad_ratio:.2f})")
     return breadth_data
 
 
