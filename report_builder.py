@@ -121,10 +121,37 @@ class ReportBuilder:
             if abs(top_mover[1].get('pct_change', 0)) > 5:
                 section += " - Significant momentum"
 
-        # Find acceleration (would need prev data)
         section += "\n- **Market Breadth:** "
         green_pct = sum(1 for t in ticker_data.values() if t.get('pct_change', 0) > 0) / len(ticker_data) * 100
         section += f"{green_pct:.0f}% green ({'Improving' if green_pct > 50 else 'Deteriorating'})"
+
+        # Show conviction/price changes if previous data is available
+        if prev_data:
+            section += "\n\n**Changes Since Last Report:**"
+            upgrades = []
+            downgrades = []
+            for ticker, tdata in ticker_data.items():
+                if ticker in prev_data:
+                    prev_price = prev_data[ticker].get('price', 0)
+                    curr_price = tdata.get('current_price', 0)
+                    if prev_price > 0 and curr_price > 0:
+                        delta = ((curr_price - prev_price) / prev_price) * 100
+                        prev_signal = prev_data[ticker].get('signal', '')
+                        if delta > 2:
+                            upgrades.append((ticker, delta, prev_signal))
+                        elif delta < -2:
+                            downgrades.append((ticker, delta, prev_signal))
+
+            if upgrades:
+                upgrades.sort(key=lambda x: x[1], reverse=True)
+                for t, d, s in upgrades[:3]:
+                    section += f"\n- **{t}:** {d:+.1f}% since last report (was {s})"
+            if downgrades:
+                downgrades.sort(key=lambda x: x[1])
+                for t, d, s in downgrades[:3]:
+                    section += f"\n- **{t}:** {d:+.1f}% since last report (was {s})"
+            if not upgrades and not downgrades:
+                section += "\n- No major moves (>2%) since last report"
 
         section += "\n\n**Key Takeaway:** "
         if vix_change < -2 and spy_change > 0.5:

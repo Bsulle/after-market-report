@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import sys
 import os
 import csv
+import pandas as pd
 
 from config import watchlist
 from data_gatherer import (
@@ -166,11 +167,53 @@ def determine_regime(metrics):
         'score': metrics['regime_score']
     }
 
+def load_previous_day_data():
+    """Load the most recent day's metrics from report_history.csv."""
+    history_file = 'report_history.csv'
+    if not os.path.exists(history_file):
+        return None
+
+    try:
+        df = pd.read_csv(history_file)
+        if df.empty:
+            return None
+
+        # Get the most recent date that isn't today
+        dates = sorted(df['date'].unique(), reverse=True)
+        if not dates:
+            return None
+
+        prev_date = dates[0]
+        prev_df = df[df['date'] == prev_date]
+
+        prev_data = {}
+        for _, row in prev_df.iterrows():
+            prev_data[row['ticker']] = {
+                'price': row.get('price', 0),
+                'pct_change': row.get('pct_change', 0),
+                'conviction': row.get('conviction', 0),
+                'signal': row.get('signal', ''),
+                'regime_score': row.get('regime_score', 0),
+                'regime_label': row.get('regime_label', ''),
+                'pc_ratio': row.get('pc_ratio', ''),
+            }
+
+        print(f"Loaded previous data from {prev_date} ({len(prev_data)} tickers)")
+        return prev_data
+
+    except Exception as e:
+        print(f"Could not load history: {str(e)}")
+        return None
+
+
 def build_markdown_report(data, calculated_metrics):
     """Build the markdown report."""
     print(f"\n{'='*60}")
     print("Building report...")
     print(f"{'='*60}\n")
+
+    # Load previous day's data for delta comparison
+    prev_data = load_previous_day_data()
 
     builder = ReportBuilder(args.date)
 
@@ -185,7 +228,7 @@ def build_markdown_report(data, calculated_metrics):
         options_data=data.get('options_data', {}),
         earnings_data=data.get('earnings_data', {}),
         news_data=data.get('news_data', {}),
-        prev_data=None  # Could be enhanced to load previous day's data
+        prev_data=prev_data
     )
 
     return report
