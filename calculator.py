@@ -185,110 +185,237 @@ class Calculator:
 
     def assess_setup_quality(self, ticker_data, tech_indicators):
         """Assess technical setup quality (1-5) with multiple factors."""
-        score = 3.0  # Base score
+        score = 2.5  # Neutral base (leaves room to move in both directions)
 
         # Trend assessment (MA-based)
         if ticker_data.get('above_ma_50'):
-            score += 0.5
+            score += 0.6
+            # Bonus if also above 200 MA (strong trend)
+            if ticker_data.get('ma_200') and ticker_data.get('current_price', 0) > ticker_data['ma_200']:
+                score += 0.3
+        elif ticker_data.get('above_ma_50') is False:
+            score -= 0.3  # Below 50 MA is mildly bearish, not catastrophic
 
-        # RSI assessment
+        # RSI assessment (more granular)
         rsi = tech_indicators.get('rsi')
         if rsi is not None:
-            if 40 <= rsi <= 60:
-                score += 0.3  # Neutral/balanced
-            elif 30 <= rsi < 40:
-                score += 0.5  # Oversold (buying opportunity)
-            elif rsi > 70:
-                score -= 0.3  # Overbought (risk)
+            if 45 <= rsi <= 55:
+                score += 0.2  # Neutral/balanced
+            elif 55 < rsi <= 65:
+                score += 0.4  # Healthy bullish momentum
+            elif 30 <= rsi < 45:
+                score += 0.5  # Oversold bounce potential
+            elif rsi < 30:
+                score += 0.7  # Deep oversold (contrarian buy)
+            elif 65 < rsi <= 75:
+                score += 0.1  # Strong but getting extended
+            elif rsi > 75:
+                score -= 0.3  # Overbought (risk of pullback)
 
-        # MACD signal
+        # MACD signal (more weight)
         macd_hist = tech_indicators.get('macd_histogram')
         if macd_hist is not None:
             if macd_hist > 0:
-                score += 0.2  # Bullish
+                score += 0.4  # Bullish MACD
             else:
-                score -= 0.2  # Bearish
+                score -= 0.2  # Bearish (lighter penalty)
 
         # Volume confirmation
         rel_volume = ticker_data.get('relative_volume', 1.0)
-        if rel_volume > 1.5:
-            score += 0.3  # Strong volume
+        if rel_volume > 2.0:
+            score += 0.5  # Very strong volume
+        elif rel_volume > 1.3:
+            score += 0.3  # Above-average volume
         elif rel_volume < 0.5:
-            score -= 0.4  # Weak volume (red flag)
+            score -= 0.3  # Weak volume
 
-        # Recent momentum
-        if ticker_data.get('pct_change', 0) > 2:
-            score += 0.3
-        elif ticker_data.get('pct_change', 0) < -3:
-            score -= 0.4
+        # Daily move (graduated - this is key for the user's concern)
+        pct_change = ticker_data.get('pct_change', 0)
+        if pct_change > 5:
+            score += 0.7  # Strong rally
+        elif pct_change > 3:
+            score += 0.5  # Solid green day
+        elif pct_change > 1:
+            score += 0.3  # Decent green day
+        elif pct_change > 0:
+            score += 0.1  # Slightly green
+        elif pct_change < -5:
+            score -= 0.6  # Sharp sell-off
+        elif pct_change < -3:
+            score -= 0.4  # Bad day
+        elif pct_change < -1:
+            score -= 0.2  # Mild red
+
+        # 52-week position (reward stocks near highs, not penalize)
+        position_52w = ticker_data.get('position_52w')
+        if position_52w is not None:
+            if position_52w > 80:
+                score += 0.3  # Near 52w high = strength
+            elif position_52w < 20:
+                score += 0.2  # Near 52w low = bounce potential
 
         return min(max(score, 1.0), 5.0)
 
     def assess_momentum_score(self, tech_indicators):
         """Assess momentum strength (1-5)."""
-        score = 3.0
+        score = 2.5  # Neutral base
 
-        # 5-day momentum
+        # 5-day momentum (graduated, lower thresholds for small/mid-caps)
         mom_5d = tech_indicators.get('momentum_5d', 0)
-        if mom_5d > 5:
-            score += 0.8
-        elif mom_5d > 2:
-            score += 0.4
-        elif mom_5d < -5:
-            score -= 0.8
-        elif mom_5d < -2:
-            score -= 0.4
+        if mom_5d is not None:
+            if mom_5d > 8:
+                score += 1.0  # Explosive
+            elif mom_5d > 5:
+                score += 0.8
+            elif mom_5d > 2:
+                score += 0.5
+            elif mom_5d > 0:
+                score += 0.2  # Slightly positive still counts
+            elif mom_5d < -8:
+                score -= 0.8
+            elif mom_5d < -5:
+                score -= 0.6
+            elif mom_5d < -2:
+                score -= 0.4
+            elif mom_5d < 0:
+                score -= 0.1  # Mildly negative
 
-        # 20-day momentum
+        # 20-day momentum (graduated)
         mom_20d = tech_indicators.get('momentum_20d', 0)
-        if mom_20d > 10:
-            score += 0.6
-        elif mom_20d > 5:
-            score += 0.3
-        elif mom_20d < -10:
-            score -= 0.6
+        if mom_20d is not None:
+            if mom_20d > 15:
+                score += 0.8  # Strong multi-week trend
+            elif mom_20d > 8:
+                score += 0.6
+            elif mom_20d > 3:
+                score += 0.3
+            elif mom_20d > 0:
+                score += 0.1
+            elif mom_20d < -15:
+                score -= 0.7
+            elif mom_20d < -8:
+                score -= 0.5
+            elif mom_20d < -3:
+                score -= 0.3
 
-        # RSI momentum
+        # RSI momentum (more nuanced)
         rsi = tech_indicators.get('rsi')
         if rsi is not None:
-            if rsi > 60:
-                score += 0.3
-            elif rsi < 40:
+            if rsi > 65:
+                score += 0.4  # Strong bullish momentum
+            elif rsi > 50:
+                score += 0.2  # Above midline = positive
+            elif rsi < 35:
                 score -= 0.3
+            elif rsi < 50:
+                score -= 0.1  # Below midline = mildly negative
+
+        # Relative strength vs market (if available)
+        rel_strength = tech_indicators.get('relative_strength')
+        if rel_strength is not None:
+            if rel_strength > 5:
+                score += 0.4  # Outperforming market
+            elif rel_strength > 0:
+                score += 0.1
+            elif rel_strength < -5:
+                score -= 0.3  # Lagging market
 
         return min(max(score, 1.0), 5.0)
 
-    def assess_macro_fit(self, regime_score):
-        """Assess how well the ticker fits the current regime (1-5)."""
-        # Risk-on (high score) vs Risk-off (low score)
+    def assess_macro_fit(self, regime_score, ticker_data=None, tech_indicators=None):
+        """Assess how well the ticker fits the current regime (1-5).
+        Now ticker-aware: a stock rallying in a bad regime gets credit for relative strength."""
+        # Base from regime (still matters but less dominant)
         if regime_score >= 4:
-            return 4.5  # Strong risk-on
+            base = 3.8
+        elif regime_score >= 3.5:
+            base = 3.3
         elif regime_score >= 3:
-            return 3.5  # Moderate risk-on
+            base = 3.0
+        elif regime_score >= 2.5:
+            base = 2.7
         else:
-            return 2.5  # Risk-off
+            base = 2.5
 
-    def assess_risk_reward(self, ticker_data, pivot_levels):
-        """Assess risk/reward asymmetry (1-5) with actual ratio."""
+        # Ticker-level adjustments: does this stock fit or defy the regime?
+        if ticker_data is not None:
+            pct_change = ticker_data.get('pct_change', 0)
+
+            if regime_score >= 3.5:
+                # Risk-on regime: reward stocks moving with the market
+                if pct_change > 3:
+                    base += 0.6  # Leading the charge
+                elif pct_change > 1:
+                    base += 0.3  # Participating
+                elif pct_change < -2:
+                    base -= 0.4  # Lagging in a good tape = weak
+            else:
+                # Risk-off/transitional: reward stocks that hold up
+                if pct_change > 2:
+                    base += 0.8  # Bucking the trend = relative strength
+                elif pct_change > 0:
+                    base += 0.4  # Holding green = resilient
+                elif pct_change < -3:
+                    base -= 0.3  # Selling with the tape
+
+            # Above 50 MA in any regime = structural strength
+            if ticker_data.get('above_ma_50'):
+                base += 0.2
+
+        # Relative strength bonus (outperforming SPY)
+        if tech_indicators is not None:
+            rs = tech_indicators.get('relative_strength')
+            if rs is not None and rs > 3:
+                base += 0.3
+
+        return min(max(base, 1.0), 5.0)
+
+    def assess_risk_reward(self, ticker_data, pivot_levels, tech_indicators=None):
+        """Assess risk/reward asymmetry (1-5) using pivot R:R and ATR-based R:R."""
         current = ticker_data['close']
+        scores = []
+
+        # Method 1: Pivot-based R:R
         upside = pivot_levels['R2'] - current
         downside = current - pivot_levels['S2']
+        if downside > 0:
+            rr_ratio = upside / downside
+            if rr_ratio >= 3:
+                scores.append(5.0)
+            elif rr_ratio >= 2:
+                scores.append(4.0)
+            elif rr_ratio >= 1.5:
+                scores.append(3.5)
+            elif rr_ratio >= 1:
+                scores.append(3.0)
+            elif rr_ratio >= 0.7:
+                scores.append(2.5)  # Not great but not terrible
+            else:
+                scores.append(2.0)
 
-        if downside <= 0:
-            return 3.0
+        # Method 2: ATR-based R:R (3:2 target/stop ratio)
+        if tech_indicators and tech_indicators.get('atr'):
+            atr = tech_indicators['atr']
+            atr_upside = 3 * atr  # 3 ATR target
+            atr_downside = 2 * atr  # 2 ATR stop
+            if atr_downside > 0:
+                atr_rr = atr_upside / atr_downside  # Always 1.5 by construction
+                scores.append(3.5)  # ATR-based is inherently balanced
 
-        rr_ratio = upside / downside
+        # Method 3: 52-week position context
+        position = ticker_data.get('position_52w')
+        if position is not None:
+            if position < 30:
+                scores.append(4.0)  # Near lows = more upside potential
+            elif position > 90:
+                scores.append(2.5)  # Near highs = less upside room
+            else:
+                scores.append(3.0)  # Mid-range
 
-        if rr_ratio >= 3:
-            return 5.0
-        elif rr_ratio >= 2:
-            return 4.0
-        elif rr_ratio >= 1.5:
-            return 3.5
-        elif rr_ratio >= 1:
-            return 3.0
-        else:
-            return 2.0
+        # Use the average of available methods (more robust than single pivot)
+        if scores:
+            return min(max(sum(scores) / len(scores), 1.0), 5.0)
+        return 3.0
 
     # ==================== REGIME SCORING ====================
 
@@ -521,11 +648,11 @@ class Calculator:
         # Momentum score
         momentum_score = self.assess_momentum_score(tech_indicators)
 
-        # Macro fit
-        macro_fit = self.assess_macro_fit(regime_score)
+        # Macro fit (now ticker-aware)
+        macro_fit = self.assess_macro_fit(regime_score, ticker_data, tech_indicators)
 
-        # Risk/Reward
-        risk_reward = self.assess_risk_reward(ticker_data, pivot_levels)
+        # Risk/Reward (now uses ATR + 52-week context)
+        risk_reward = self.assess_risk_reward(ticker_data, pivot_levels, tech_indicators)
 
         # Conviction score with breakdown
         conviction, conviction_breakdown = self.conviction_score_breakdown(
