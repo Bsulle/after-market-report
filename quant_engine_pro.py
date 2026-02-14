@@ -207,6 +207,14 @@ class InstitutionalQuantEngine:
         elif skew > 1.4:
             score -= 0.5   # Moderate hedging
 
+        # Daily price action floor: a stock up big today should never be 0
+        if pct_change > 5:
+            score = max(score, 3)  # Up 5%+ = at least 3/10
+        elif pct_change > 2:
+            score = max(score, 2)  # Up 2%+ = at least 2/10
+        elif pct_change > 0:
+            score = max(score, 1)  # Green day = at least 1/10
+
         return max(0, min(10, round(score)))
 
     def analyze_ticker(self, ticker):
