@@ -105,7 +105,7 @@ class ReportBuilder:
         gold_change = macro_data.get('Gold', {}).get('pct_change', 0)
 
         section += f"""
-- **VIX:** {macro_data.get('VIX', {}).get('price', 'N/A')} ({vix_change:+.2f}%) - {'Fear subsiding' if vix_change < 0 else 'Fear rising'}
+- **VIX:** {macro_data.get('VIX', {}).get('price', 0):.2f} ({vix_change:+.2f}%) - {'Fear subsiding' if vix_change < 0 else 'Fear rising'}
 - **Gold:** ${macro_data.get('Gold', {}).get('price', 0):.2f} ({gold_change:+.2f}%) - {'Safe haven bid' if gold_change > 0 else 'Risk-on rotation'}
 - **DXY:** {macro_data.get('DXY', {}).get('price', 0):.2f} ({dxy_change:+.2f}%) - {'Dollar strength' if dxy_change > 0 else 'Dollar weakness'}
 
