@@ -2,6 +2,8 @@
 import argparse
 from datetime import datetime, timedelta
 import sys
+import os
+import csv
 
 from config import watchlist
 from data_gatherer import (
@@ -188,6 +190,60 @@ def build_markdown_report(data, calculated_metrics):
 
     return report
 
+def save_daily_history(date_str, data, calculated_metrics):
+    """Save daily ticker scores and signals to history CSV for tracking accuracy."""
+    history_file = 'report_history.csv'
+    file_exists = os.path.exists(history_file)
+
+    fieldnames = [
+        'date', 'ticker', 'price', 'pct_change', 'conviction', 'signal',
+        'setup_quality', 'macro_fit', 'risk_reward', 'momentum_score',
+        'rsi', 'regime_score', 'regime_label', 'pc_ratio', 'options_sentiment'
+    ]
+
+    try:
+        with open(history_file, 'a', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+
+            for ticker, metrics in calculated_metrics.get('metrics', {}).items():
+                ticker_data = data.get('ticker_data', {}).get(ticker, {})
+                options = data.get('options_data', {}).get(ticker, {})
+
+                conviction = metrics.get('conviction', 0)
+                if conviction >= 4.0:
+                    signal = 'BUY'
+                elif conviction <= 2.0:
+                    signal = 'SELL'
+                else:
+                    signal = 'HOLD'
+
+                row = {
+                    'date': date_str,
+                    'ticker': ticker,
+                    'price': round(ticker_data.get('current_price', 0), 2),
+                    'pct_change': round(ticker_data.get('pct_change', 0), 2),
+                    'conviction': round(conviction, 2),
+                    'signal': signal,
+                    'setup_quality': round(metrics.get('setup_quality', 0), 2),
+                    'macro_fit': round(metrics.get('macro_fit', 0), 2),
+                    'risk_reward': round(metrics.get('risk_reward', 0), 2),
+                    'momentum_score': round(metrics.get('momentum_score', 0), 2),
+                    'rsi': round(metrics.get('rsi', 0), 1) if metrics.get('rsi') else '',
+                    'regime_score': round(calculated_metrics.get('regime_score', 0), 1),
+                    'regime_label': calculated_metrics.get('regime_label', ''),
+                    'pc_ratio': options.get('put_call_ratio', ''),
+                    'options_sentiment': options.get('sentiment', '')
+                }
+                writer.writerow(row)
+
+        print(f"✓ Daily metrics saved to {history_file}")
+
+    except Exception as e:
+        print(f"⚠ Could not save history: {str(e)}")
+
+
 if __name__ == '__main__':
     # Argument parser for date input
     parser = argparse.ArgumentParser(description='Generate After-Market Stock Report')
@@ -230,6 +286,9 @@ if __name__ == '__main__':
         filename = f"After_Market_Report_{args.date}.md"
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(report)
+
+        # Save daily metrics to history CSV for tracking accuracy
+        save_daily_history(args.date, data, calculated_metrics)
 
         print(f"\n{'='*60}")
         print(f"Report generated successfully!")
