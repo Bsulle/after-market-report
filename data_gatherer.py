@@ -146,63 +146,102 @@ def fetch_breadth_data():
 
 
 def fetch_options_data(tickers):
-    """Fetch options flow data using yfinance (free)."""
+    """
+    Fetch options flow data using yfinance with manual chain reconstruction.
+    Scans first 4 expirations (~60 days) and sums volume/OI across all strikes
+    to get accurate P/C ratios. Fixes undercounting bugs (NVO, AUR).
+    """
     options_data = {}
 
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
 
-            # Get available expiration dates
             expirations = stock.options
             if not expirations:
                 continue
 
-            # Get nearest expiration (most active)
-            nearest_exp = expirations[0]
+            # Get current price for ATM IV filtering
+            hist = stock.history(period='5d')
+            price = hist['Close'].iloc[-1] if not hist.empty else 0
 
-            # Get options chain
-            opt_chain = stock.option_chain(nearest_exp)
-            calls = opt_chain.calls
-            puts = opt_chain.puts
+            # --- MANUAL CHAIN RECONSTRUCTION ---
+            # Sum across first 4 expirations instead of just the nearest
+            total_call_volume = 0
+            total_put_volume = 0
+            total_call_oi = 0
+            total_put_oi = 0
+            iv_data = []
+            all_top_calls = []
+            all_top_puts = []
 
-            if calls.empty and puts.empty:
+            for exp in expirations[:4]:
+                try:
+                    opt_chain = stock.option_chain(exp)
+                    calls = opt_chain.calls
+                    puts = opt_chain.puts
+
+                    if calls.empty and puts.empty:
+                        continue
+
+                    # Sum ALL volume and OI (fillna to avoid NaN issues)
+                    total_call_volume += calls['volume'].fillna(0).sum()
+                    total_put_volume += puts['volume'].fillna(0).sum()
+                    total_call_oi += calls['openInterest'].fillna(0).sum()
+                    total_put_oi += puts['openInterest'].fillna(0).sum()
+
+                    # Collect ATM IV (within 5% of current price) - more accurate
+                    if price > 0:
+                        atm_calls = calls[(calls['strike'] > price * 0.95) & (calls['strike'] < price * 1.05)]
+                        iv_data.extend(atm_calls['impliedVolatility'].dropna().tolist())
+
+                    # Collect top strikes by volume for this expiration
+                    if not calls.empty:
+                        top_c = calls.nlargest(3, 'volume')[['strike', 'volume', 'openInterest', 'impliedVolatility']]
+                        all_top_calls.append(top_c)
+                    if not puts.empty:
+                        top_p = puts.nlargest(3, 'volume')[['strike', 'volume', 'openInterest', 'impliedVolatility']]
+                        all_top_puts.append(top_p)
+
+                except Exception:
+                    continue
+
+            if total_call_volume == 0 and total_put_volume == 0:
                 continue
 
-            # Calculate metrics
-            total_call_volume = calls['volume'].sum() if 'volume' in calls.columns else 0
-            total_put_volume = puts['volume'].sum() if 'volume' in puts.columns else 0
-            total_call_oi = calls['openInterest'].sum() if 'openInterest' in calls.columns else 0
-            total_put_oi = puts['openInterest'].sum() if 'openInterest' in puts.columns else 0
-
-            # Put/Call ratio
+            # Calculate ratios from aggregated data
             pc_ratio = total_put_volume / total_call_volume if total_call_volume > 0 else 0
             pc_oi_ratio = total_put_oi / total_call_oi if total_call_oi > 0 else 0
 
-            # Find highest volume strikes
-            top_call_strikes = calls.nlargest(3, 'volume')[['strike', 'volume', 'openInterest', 'impliedVolatility']] if not calls.empty else pd.DataFrame()
-            top_put_strikes = puts.nlargest(3, 'volume')[['strike', 'volume', 'openInterest', 'impliedVolatility']] if not puts.empty else pd.DataFrame()
+            # Use median ATM IV (filters out crazy deep OTM values)
+            avg_call_iv = np.median(iv_data) * 100 if iv_data else 0
+            avg_put_iv = avg_call_iv  # ATM IV applies to both sides
 
-            # Average IV
-            avg_call_iv = calls['impliedVolatility'].mean() * 100 if 'impliedVolatility' in calls.columns else 0
-            avg_put_iv = puts['impliedVolatility'].mean() * 100 if 'impliedVolatility' in puts.columns else 0
+            # Merge and sort top strikes across all expirations
+            top_call_strikes = pd.concat(all_top_calls).nlargest(3, 'volume') if all_top_calls else pd.DataFrame()
+            top_put_strikes = pd.concat(all_top_puts).nlargest(3, 'volume') if all_top_puts else pd.DataFrame()
+
+            # Confidence flag
+            confidence = "HIGH" if total_call_volume > 100 else "LOW"
 
             options_data[ticker] = {
-                'nearest_expiry': nearest_exp,
-                'total_call_volume': int(total_call_volume) if not pd.isna(total_call_volume) else 0,
-                'total_put_volume': int(total_put_volume) if not pd.isna(total_put_volume) else 0,
-                'total_call_oi': int(total_call_oi) if not pd.isna(total_call_oi) else 0,
-                'total_put_oi': int(total_put_oi) if not pd.isna(total_put_oi) else 0,
+                'nearest_expiry': expirations[0],
+                'expirations_scanned': min(len(expirations), 4),
+                'total_call_volume': int(total_call_volume),
+                'total_put_volume': int(total_put_volume),
+                'total_call_oi': int(total_call_oi),
+                'total_put_oi': int(total_put_oi),
                 'put_call_ratio': round(pc_ratio, 2) if not pd.isna(pc_ratio) else 0,
                 'put_call_oi_ratio': round(pc_oi_ratio, 2) if not pd.isna(pc_oi_ratio) else 0,
                 'avg_call_iv': round(avg_call_iv, 1) if not pd.isna(avg_call_iv) else 0,
                 'avg_put_iv': round(avg_put_iv, 1) if not pd.isna(avg_put_iv) else 0,
                 'top_call_strikes': top_call_strikes.to_dict('records') if not top_call_strikes.empty else [],
                 'top_put_strikes': top_put_strikes.to_dict('records') if not top_put_strikes.empty else [],
-                'sentiment': 'BULLISH' if pc_ratio < 0.7 else ('BEARISH' if pc_ratio > 1.3 else 'NEUTRAL')
+                'sentiment': 'BULLISH' if pc_ratio < 0.7 else ('BEARISH' if pc_ratio > 1.3 else 'NEUTRAL'),
+                'confidence': confidence
             }
 
-            print(f"Fetched options for {ticker}: P/C={pc_ratio:.2f} ({options_data[ticker]['sentiment']})")
+            print(f"Fetched options for {ticker}: P/C={pc_ratio:.2f} ({options_data[ticker]['sentiment']}) [4-exp scan, {confidence}]")
 
         except Exception as e:
             print(f"Options error for {ticker}: {str(e)[:50]}")
@@ -326,6 +365,9 @@ SECTOR_MAP = {
     'AUR': {'sector': 'Technology', 'industry': 'Autonomous Vehicles'},
     'HIMS': {'sector': 'Healthcare', 'industry': 'Telehealth/DTC Healthcare'},
     'JOBY': {'sector': 'Industrials', 'industry': 'eVTOL/Urban Air Mobility'},
+    'NBIS': {'sector': 'Technology', 'industry': 'AI Infrastructure/Cloud'},
+    'PATH': {'sector': 'Technology', 'industry': 'AI/Robotic Process Automation'},
+    'OKLO': {'sector': 'Energy', 'industry': 'Nuclear/Advanced Fission'},
 }
 
 
