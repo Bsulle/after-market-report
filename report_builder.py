@@ -304,11 +304,23 @@ class ReportBuilder:
             else:
                 macd_str = "-"
 
-            # Quick signal based on technicals
+            # Signal blends technicals + conviction
             above_ma = data.get('above_ma_50', False)
             if above_ma and (rsi is None or rsi < 70) and macd_hist > 0:
-                signal = "🟢 BUY"
+                tech_signal = "BUY"
             elif not above_ma and (rsi is None or rsi > 30) and macd_hist < 0:
+                tech_signal = "SELL"
+            else:
+                tech_signal = "HOLD"
+
+            # Conviction can override: high conviction blocks SELL, low conviction blocks BUY
+            if tech_signal == "SELL" and conviction >= 3.5:
+                signal = "⚪ HOLD"  # Strong conviction overrides technical sell
+            elif tech_signal == "BUY" and conviction < 2.0:
+                signal = "⚪ HOLD"  # Weak conviction overrides technical buy
+            elif tech_signal == "BUY":
+                signal = "🟢 BUY"
+            elif tech_signal == "SELL":
                 signal = "🔴 SELL"
             else:
                 signal = "⚪ HOLD"
