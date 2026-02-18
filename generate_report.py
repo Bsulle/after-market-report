@@ -102,6 +102,20 @@ def gather_data(date):
         if not options_data:
             print("\nFetching options data via yfinance...")
             options_data = fetch_options_data(watchlist)
+    else:
+        # Backfill missing tickers with yfinance (handles rate limiting)
+        missing_tickers = [t for t in watchlist if t not in ticker_data]
+        if missing_tickers:
+            print(f"\n⚠ {len(missing_tickers)} tickers missing due to rate limiting. Backfilling with yfinance...")
+            backfill_data = fetch_ticker_data(missing_tickers, date)
+            ticker_data.update(backfill_data)
+            print(f"✓ Backfilled {len(backfill_data)} tickers via yfinance")
+
+            # Also backfill options for missing tickers
+            print(f"Fetching options data for backfilled tickers...")
+            backfill_options = fetch_options_data(missing_tickers)
+            options_data.update(backfill_options)
+            print(f"✓ Backfilled options for {len(backfill_options)} tickers")
 
     # Add 52-week data to ticker data
     print("\nCalculating 52-week positions...")
