@@ -1,10 +1,11 @@
 # Watchlist configuration (after-market report + thesis tickers)
 watchlist = [
     'ASTS', 'GRAB', 'MP', 'ZETA',
-    'JD', 'SLDP', 'ACHR', 'NVO',
+    'JD', 'SLDP', 'NVO',
     'CRML', 'MCRP', 'DLO', 'IREN',
-    'OSCR', 'TEM', 'AUR', 'HIMS',
-    'JOBY', 'NBIS', 'PATH', 'OKLO'
+    'OSCR', 'TEM', 'AUR', 'BZ',
+    'JOBY', 'NBIS', 'PATH', 'OKLO',
+    'TCOM'
 ]
 
 # Regime thresholds
