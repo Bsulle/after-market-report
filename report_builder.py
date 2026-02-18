@@ -373,7 +373,7 @@ class ReportBuilder:
                     signals.append("RSI overbought")
 
             # MACD signals
-            if macd.get('histogram') is not None:
+            if macd.get('histogram') is not None and momentum_5d is not None:
                 if macd['histogram'] > 0 and momentum_5d > 2:
                     signals.append("MACD bullish + momentum")
                 elif macd['histogram'] < 0 and momentum_5d < -2:
@@ -838,7 +838,7 @@ NVO, HIMS (healthcare stability)
             action = "📋 **Action:** Hold existing position. Add only on confirmed breakout above resistance."
         elif conviction < 2.5 or (rsi is not None and rsi > 75):
             action = "⚠️ **Action:** Reduce exposure or avoid. Unfavorable risk/reward at current levels."
-        elif not above_ma_50 and momentum_5d < -3:
+        elif not above_ma_50 and (momentum_5d is not None and momentum_5d < -3):
             action = "🛑 **Action:** Repair mode - wait for reclaim of 50-day MA before considering entry."
         else:
             action = "⏳ **Action:** Monitor for better entry. Current setup is neutral - patience warranted."
