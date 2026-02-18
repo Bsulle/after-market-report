@@ -512,6 +512,9 @@ class Calculator:
         for ticker, data in ticker_data_dict.items():
             if 'hist' in data and len(data['hist']) > 1:
                 returns = data['hist']['Close'].pct_change().dropna()
+                # Normalize timezone - remove tz info to allow mixing sources
+                if returns.index.tz is not None:
+                    returns.index = returns.index.tz_localize(None)
                 returns_dict[ticker] = returns
 
         if not returns_dict:
