@@ -623,7 +623,11 @@ class Calculator:
         tech_indicators['gap_pct'] = gap_pct
 
         # Calculate relative volume
-        avg_volume = ticker_data['hist']['Volume'].mean() if hist is not None else ticker_data.get('volume', 1)
+        hist = ticker_data.get('hist')
+        if hist is not None and 'Volume' in hist.columns:
+            avg_volume = hist['Volume'].mean()
+        else:
+            avg_volume = ticker_data.get('volume', 1)
         current_volume = ticker_data.get('volume', avg_volume)
         rel_volume = self.calculate_relative_volume(current_volume, avg_volume)
         ticker_data['relative_volume'] = rel_volume
