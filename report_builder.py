@@ -733,9 +733,9 @@ NVO, HIMS (healthcare stability)
             elif 40 <= rsi <= 60:
                 tech_signals.append("RSI neutral territory")
 
-        if macd_hist > 0 and momentum_5d > 0:
+        if macd_hist is not None and momentum_5d is not None and macd_hist > 0 and momentum_5d > 0:
             tech_signals.append("MACD bullish with positive momentum")
-        elif macd_hist < 0 and momentum_5d < 0:
+        elif macd_hist is not None and momentum_5d is not None and macd_hist < 0 and momentum_5d < 0:
             tech_signals.append("MACD bearish with negative momentum")
 
         if above_ma_50:
