@@ -4,7 +4,7 @@ watchlist = [
     'JD', 'SLDP', 'NVO',
     'CRML', 'MCRP', 'DLO', 'IREN',
     'OSCR', 'TEM', 'AUR', 'BZ',
-    'NBIS', 'PATH', 'OKLO',
+    'JOBY', 'NBIS', 'PATH', 'OKLO',
     'TCOM'
 ]
 
