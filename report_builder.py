@@ -299,16 +299,16 @@ class ReportBuilder:
                 rsi_str = "-"
 
             # MACD signal with trend
-            if macd_hist != 0:
+            if macd_hist is not None and macd_hist != 0:
                 macd_str = f"{'📈' if macd_hist > 0 else '📉'}"
             else:
                 macd_str = "-"
 
             # Signal blends technicals + conviction
             above_ma = data.get('above_ma_50', False)
-            if above_ma and (rsi is None or rsi < 70) and macd_hist > 0:
+            if above_ma and (rsi is None or rsi < 70) and (macd_hist is not None and macd_hist > 0):
                 tech_signal = "BUY"
-            elif not above_ma and (rsi is None or rsi > 30) and macd_hist < 0:
+            elif not above_ma and (rsi is None or rsi > 30) and (macd_hist is not None and macd_hist < 0):
                 tech_signal = "SELL"
             else:
                 tech_signal = "HOLD"
