@@ -359,10 +359,19 @@ def fetch_news_data(tickers):
                 # Get top 3 recent news items
                 ticker_news = []
                 for item in news[:3]:
+                    # Handle both old and new yfinance news formats
+                    # New format nests data under 'content' key
+                    content = item.get('content', item)
+                    title = content.get('title', '') or item.get('title', '')
+                    # Publisher may be nested in provider dict (new format)
+                    provider = content.get('provider', {})
+                    publisher = provider.get('displayName', '') if isinstance(provider, dict) else ''
+                    if not publisher:
+                        publisher = content.get('publisher', '') or item.get('publisher', '')
                     ticker_news.append({
-                        'title': item.get('title', ''),
-                        'publisher': item.get('publisher', ''),
-                        'link': item.get('link', ''),
+                        'title': title,
+                        'publisher': publisher,
+                        'link': item.get('link', '') or content.get('url', ''),
                         'timestamp': item.get('providerPublishTime', 0),
                         'type': item.get('type', 'STORY')
                     })

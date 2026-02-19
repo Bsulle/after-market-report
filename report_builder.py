@@ -458,11 +458,11 @@ class ReportBuilder:
 
         section += """
 **Identified Cohorts:**
-- eVTOL Cluster: ACHR, JOBY (aviation/mobility theme)
+- eVTOL/Mobility: JOBY, AUR (aviation/autonomy theme)
 - High-Beta Tech: ASTS, ZETA, GRAB (growth/tech exposure)
-- China/EM Risk: JD, GRAB (emerging markets exposure)
-- Materials: MP, DLO (commodity-linked)
-- Healthcare/Biotech: NVO, HIMS, CRML, MCRP (defensive growth)
+- China/EM Risk: JD, GRAB, TCOM (emerging markets exposure)
+- Materials: MP, DLO, SLDP (commodity-linked)
+- Healthcare/Biotech: NVO, CRML, MCRP, OSCR (defensive growth)
 
 **Divergence Plays:** Look for tickers decoupling from SPY correlation for independent alpha opportunities."""
 
@@ -502,10 +502,10 @@ class ReportBuilder:
 
 **Themes Gaining Momentum:** ↗️
 - Space/Satellite: ASTS showing strength
-- Healthcare Innovation: NVO, HIMS maintaining leadership
+- Healthcare Innovation: NVO, OSCR maintaining leadership
 
 **Themes Consolidating:** →
-- eVTOL: ACHR, JOBY in base-building mode
+- eVTOL/Autonomy: JOBY, AUR in base-building mode
 - China Tech: JD awaiting catalyst
 
 **Themes Losing Momentum:** ↘️
@@ -529,7 +529,7 @@ class ReportBuilder:
 {', '.join(leaders)}
 
 **Quality Anchors** (Stable, Defensive):
-NVO, HIMS (healthcare stability)
+NVO, OSCR (healthcare stability)
 
 **Lagging Participation:**
 {', '.join(laggards)}"""
