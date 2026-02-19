@@ -313,11 +313,12 @@ class ReportBuilder:
             else:
                 tech_signal = "HOLD"
 
-            # Conviction can override: high conviction blocks SELL, low conviction blocks BUY
-            if tech_signal == "SELL" and conviction >= 3.5:
-                signal = "⚪ HOLD"  # Strong conviction overrides technical sell
-            elif tech_signal == "BUY" and conviction < 2.0:
-                signal = "⚪ HOLD"  # Weak conviction overrides technical buy
+            # Conviction and price action can override technical signals
+            # Rule: A stock up 3%+ can't show SELL, down 3%+ can't show BUY
+            if tech_signal == "SELL" and (conviction >= 3.5 or pct_change > 3):
+                signal = "⚪ HOLD"  # Strong conviction or big green day overrides SELL
+            elif tech_signal == "BUY" and (conviction < 2.0 or pct_change < -3):
+                signal = "⚪ HOLD"  # Weak conviction or big red day overrides BUY
             elif tech_signal == "BUY":
                 signal = "🟢 BUY"
             elif tech_signal == "SELL":
@@ -793,17 +794,23 @@ NVO, HIMS (healthcare stability)
                 summary_parts.append(f"  - Elevated IV ({avg_call_iv:.0f}%) - expect large moves, consider selling premium.")
 
         # 6. NEWS & CATALYSTS
+        news_displayed = False
         if news_items and len(news_items) > 0:
-            summary_parts.append("**Recent News:**")
+            news_lines = []
             for item in news_items[:2]:  # Show top 2 news items
-                title = item.get('title', '')
-                publisher = item.get('publisher', '')
+                title = item.get('title', '') or item.get('headline', '') or ''
+                publisher = item.get('publisher', '') or item.get('source', '') or ''
                 if title:
                     # Truncate long titles
                     if len(title) > 80:
                         title = title[:77] + "..."
-                    summary_parts.append(f"  - \"{title}\" ({publisher})")
-        else:
+                    news_lines.append(f"  - \"{title}\" ({publisher})")
+            if news_lines:
+                summary_parts.append("**Recent News:**")
+                summary_parts.extend(news_lines)
+                news_displayed = True
+
+        if not news_displayed:
             summary_parts.append(f"**Sector Context:** {industry} within {sector} - monitor sector-level catalysts and rotation.")
 
         # 7. REGIME FIT

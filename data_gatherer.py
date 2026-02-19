@@ -74,8 +74,8 @@ def fetch_ticker_data(tickers, date_str):
 def fetch_macro_data(date_str):
     """Fetch macro market indicators."""
     macro_tickers = {
-        'SPY': 'S&P 500',
-        'QQQ': 'Nasdaq',
+        '^GSPC': 'S&P 500',  # Actual index, not SPY ETF
+        '^IXIC': 'Nasdaq',   # Actual index, not QQQ ETF
         '^VIX': 'VIX',
         '^TNX': '10Y Yield',
         'DX-Y.NYB': 'DXY',
@@ -199,7 +199,8 @@ def fetch_options_data(tickers):
             total_put_volume = 0
             total_call_oi = 0
             total_put_oi = 0
-            iv_data = []
+            call_iv_data = []
+            put_iv_data = []
             all_top_calls = []
             all_top_puts = []
 
@@ -218,10 +219,12 @@ def fetch_options_data(tickers):
                     total_call_oi += calls['openInterest'].fillna(0).sum()
                     total_put_oi += puts['openInterest'].fillna(0).sum()
 
-                    # Collect ATM IV (within 5% of current price) - more accurate
+                    # Collect ATM IV separately for calls and puts (within 5% of current price)
                     if price > 0:
                         atm_calls = calls[(calls['strike'] > price * 0.95) & (calls['strike'] < price * 1.05)]
-                        iv_data.extend(atm_calls['impliedVolatility'].dropna().tolist())
+                        atm_puts = puts[(puts['strike'] > price * 0.95) & (puts['strike'] < price * 1.05)]
+                        call_iv_data.extend(atm_calls['impliedVolatility'].dropna().tolist())
+                        put_iv_data.extend(atm_puts['impliedVolatility'].dropna().tolist())
 
                     # Collect top strikes by volume for this expiration
                     if not calls.empty:
@@ -241,9 +244,9 @@ def fetch_options_data(tickers):
             pc_ratio = total_put_volume / total_call_volume if total_call_volume > 0 else 0
             pc_oi_ratio = total_put_oi / total_call_oi if total_call_oi > 0 else 0
 
-            # Use median ATM IV (filters out crazy deep OTM values)
-            avg_call_iv = np.median(iv_data) * 100 if iv_data else 0
-            avg_put_iv = avg_call_iv  # ATM IV applies to both sides
+            # Use median ATM IV separately for calls and puts (put skew is real)
+            avg_call_iv = np.median(call_iv_data) * 100 if call_iv_data else 0
+            avg_put_iv = np.median(put_iv_data) * 100 if put_iv_data else avg_call_iv
 
             # Merge and sort top strikes across all expirations
             top_call_strikes = pd.concat(all_top_calls).nlargest(3, 'volume') if all_top_calls else pd.DataFrame()
